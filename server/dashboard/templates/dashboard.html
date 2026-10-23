@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+
+{% block title %}Overview — Stress Letterbox Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Overview</h1>
+  <div class="header-actions">
+    <a id="export-csv-link" href="{{ url_for('dashboard.export') }}?format=csv" class="btn-ghost">Export CSV</a>
+    <a id="export-json-link" href="{{ url_for('dashboard.export') }}?format=json" class="btn-ghost">Export JSON</a>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="filter-bar">
+  <form id="filter-form" method="GET" action="{{ url_for('dashboard.overview') }}">
+    <div class="filter-group">
+      <label>Department</label>
+      <select name="department">
+        <option value="">All departments</option>
+        {% for dept in departments %}
+          <option value="{{ dept.id }}" {{ 'selected' if request.args.get('department') == dept.id }}>{{ dept.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-group">
+      <label>Stress Level</label>
+      <select name="stress_level">
+        <option value="">Any level</option>
+        {% for lvl, label in [('1','Low'),('2','Mild'),('3','Moderate'),('4','High'),('5','Intense')] %}
+          <option value="{{ lvl }}" {{ 'selected' if request.args.get('stress_level') == lvl }}>{{ lvl }} – {{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-group">
+      <label>Reason</label>
+      <select name="reason_category">
+        <option value="">Any reason</option>
+        {% for cat in reason_categories %}
+          <option value="{{ cat.id }}" {{ 'selected' if request.args.get('reason_category') == cat.id }}>{{ cat.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-group">
+      <label>From</label>
+      <input type="date" name="date_from" value="{{ request.args.get('date_from', '') }}">
+    </div>
+    <div class="filter-group">
+      <label>To</label>
+      <input type="date" name="date_to" value="{{ request.args.get('date_to', '') }}">
+    </div>
+    <button type="submit" class="btn-primary btn-sm">Apply</button>
+    <a href="{{ url_for('dashboard.overview') }}" class="btn-ghost btn-sm">Clear</a>
+  </form>
+</div>
+
+<!-- Stat cards -->
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-value">{{ total }}</div>
+    <div class="stat-label">Total Entries</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ avg_overall }}</div>
+    <div class="stat-label">Avg Stress Level</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ departments | length }}</div>
+    <div class="stat-label">Active Departments</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-value">{{ by_level.get(4, 0) + by_level.get(5, 0) }}</div>
+    <div class="stat-label">High / Intense Events</div>
+  </div>
+</div>
+
+<div class="charts-grid">
+  <!-- Trend chart -->
+  <div class="chart-card wide">
+    <h3>Entries Over Time (30 days)</h3>
+    <canvas id="trend-chart" height="80"></canvas>
+  </div>
+
+  <!-- Stress level distribution -->
+  <div class="chart-card">
+    <h3>Stress Level Distribution</h3>
+    <canvas id="level-chart" height="160"></canvas>
+  </div>
+
+  <!-- By department -->
+  <div class="chart-card">
+    <h3>By Department</h3>
+    <canvas id="dept-chart" height="160"></canvas>
+  </div>
+
+  <!-- By reason category -->
+  <div class="chart-card wide">
+    <h3>Top Reason Categories</h3>
+    <canvas id="reason-chart" height="80"></canvas>
+  </div>
+</div>
+
+<!-- Department detail table -->
+<div class="table-card">
+  <h3>Department Breakdown</h3>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Department</th>
+        <th>Total Entries</th>
+        <th>Avg Stress</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for dept in departments %}
+      <tr>
+        <td>{{ dept.name }}</td>
+        <td>{{ by_dept.get(dept.id, 0) }}</td>
+        <td>{{ avg_by_dept.get(dept.id, '—') }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const TREND_DATA = {{ trend|safe }};
+const BY_LEVEL = {{ by_level|tojson }};
+const BY_DEPT = {{ by_dept|tojson }};
+const BY_REASON = {{ by_reason|tojson }};
+const DEPT_NAMES = {{ departments|tojson }};
+const REASON_CATS = {{ reason_categories|tojson }};
+
+// Keep export links in sync with the active filter form values
+// so "Export CSV" always downloads the currently-filtered data.
+(function syncExportLinks() {
+  const form = document.getElementById('filter-form');
+  const csvLink = document.getElementById('export-csv-link');
+  const jsonLink = document.getElementById('export-json-link');
+  const baseExport = "{{ url_for('dashboard.export') }}";
+
+  function updateExportLinks() {
+    const params = new URLSearchParams();
+    form.querySelectorAll('select, input').forEach(el => {
+      if (el.name && el.value) params.set(el.name, el.value);
+    });
+    params.set('format', 'csv');
+    csvLink.href = baseExport + '?' + params.toString();
+    params.set('format', 'json');
+    jsonLink.href = baseExport + '?' + params.toString();
+  }
+
+  form.querySelectorAll('select, input').forEach(el => {
+    el.addEventListener('change', updateExportLinks);
+  });
+  updateExportLinks();
+})();
+</script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}

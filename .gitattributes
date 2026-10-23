@@ -1,0 +1,14 @@
+# Normalize line endings to LF in the repo; Git converts to the
+# platform's native ending on checkout for anything it detects as text.
+* text=auto
+
+# Shell scripts must keep LF even when checked out on Windows, or they
+# fail to run under WSL/Linux/macOS (a CRLF shebang line is broken).
+*.sh text eol=lf
+
+# Windows batch files are the opposite case — keep CRLF.
+*.bat text eol=crlf
+
+# Binary assets: don't run line-ending conversion or diff as text.
+*.png binary
+*.db binary

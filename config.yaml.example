@@ -1,0 +1,89 @@
+# ============================================================
+# Workplace Stress Letterbox — Configuration Template
+# ============================================================
+# INSTRUCTIONS:
+#   cp config.yaml.example config.yaml
+#   Edit config.yaml with your real values.
+#   config.yaml is .gitignored — never commit it.
+#   This example file IS safe to commit.
+# ============================================================
+
+server:
+  host: "0.0.0.0"
+  port: 5000
+  # Generate with:
+  #   python3 -c "import secrets; print(secrets.token_hex(32))"
+  secret_key: "REPLACE-WITH-A-LONG-RANDOM-STRING"
+
+admin:
+  username: "admin"
+  # Generate the hash with:
+  #   python3 -c "import bcrypt; print(bcrypt.hashpw(b'your-password', bcrypt.gensalt()).decode())"
+  # Then paste the output here. Keep config.yaml out of version control.
+  password_hash: "REPLACE-WITH-BCRYPT-HASH"
+
+# ── Departments ──────────────────────────────────────────────
+# Edit these to match your organisation.
+# Minimum recommended size per department: 5 people (privacy).
+# Adding a dept: add an entry here and restart the server.
+# Removing a dept: set active: false (preserves historical data).
+departments:
+  - id: "operations"
+    name: "Operations"
+    active: true
+  - id: "finance"
+    name: "Finance"
+    active: true
+  - id: "hr"
+    name: "Human Resources"
+    active: true
+  - id: "it"
+    name: "IT & Technology"
+    active: true
+  - id: "sales"
+    name: "Sales"
+    active: true
+  - id: "other"
+    name: "Other / Not Listed"
+    active: true
+
+# ── Reason Categories ────────────────────────────────────────
+reason_categories:
+  - id: "noise"
+    label: "Noise or Distraction"
+  - id: "workload"
+    label: "Workload"
+  - id: "time_pressure"
+    label: "Time Pressure / Deadlines"
+  - id: "interpersonal"
+    label: "Interpersonal Conflict"
+  - id: "temperature"
+    label: "Temperature / Environment"
+  - id: "equipment"
+    label: "Equipment Failure"
+  - id: "unclear_instructions"
+    label: "Unclear Instructions"
+  - id: "management"
+    label: "Management / Leadership"
+  - id: "change"
+    label: "Organisational Change"
+  - id: "other"
+    label: "Other"
+
+# ── Client Behaviour ─────────────────────────────────────────
+client:
+  # Update this to your server's LAN IP address:
+  server_url: "http://192.168.1.100:5000"
+  reminder_frequency: "weekly"   # "weekly" or "monthly"
+  entry_char_limit: 280
+  retention_days: 90             # Days to keep submitted entries locally (0 = keep forever)
+
+# ── Floor Plan ───────────────────────────────────────────────
+floorplan:
+  enabled: false                 # off by default -- location tagging can make an
+                                  # anonymous entry re-identifiable; enable deliberately
+  active_floorplan_id: null      # Managed automatically by the admin dashboard
+
+# ── Database ─────────────────────────────────────────────────
+database:
+  path: "server/data/letterbox.db"

@@ -1,0 +1,70 @@
+# ── Claude Code local state ─────────────────────────────────
+.claude/
+
+# ── Python ────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+pip-wheel-metadata/
+
+# ── Virtual environments ───────────────────────────────────
+venv/
+.venv/
+env/
+ENV/
+
+# ── Database files ─────────────────────────────────────────
+# Server database (contains submission data — back up separately)
+server/data/*.db
+server/data/*.db-wal
+server/data/*.db-shm
+
+# Floor plan uploads (back up separately)
+server/data/floorplans/
+
+# Client databases are stored in OS app-data, not here.
+# If a developer runs the client from the project root, ignore any local db:
+*.db
+*.db-wal
+*.db-shm
+
+# ── Configuration ──────────────────────────────────────────
+# config.yaml contains admin credentials — never commit it.
+config.yaml
+
+# Keep the example template in version control:
+# !config.yaml.example  ← already tracked, not ignored
+
+# ── Environment files ──────────────────────────────────────
+.env
+.env.*
+
+# ── IDE / editor ───────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ── Test / coverage ────────────────────────────────────────
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ── Logs ───────────────────────────────────────────────────
+*.log
+logs/
+
+# ── Docker ─────────────────────────────────────────────────
+.dockerignore

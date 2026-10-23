@@ -1,0 +1,51 @@
+# tests/fixtures/test_config.yaml
+# Used by the test suite only. Safe to commit.
+
+server:
+  host: "127.0.0.1"
+  port: 5000
+  secret_key: "test-secret-key-not-for-production"
+
+admin:
+  username: "testadmin"
+  # bcrypt hash of "testpassword123" (cost 4 -- test-only, keeps the suite fast)
+  password_hash: "$2b$04$mFz23Ojsj0D/310m/1ztFeVX/8VfvsLkMH5gXYw91Y9CqKS4jdCxO"
+
+departments:
+  - id: "finance"
+    name: "Finance"
+    active: true
+  - id: "it"
+    name: "IT & Technology"
+    active: true
+  - id: "hr"
+    name: "Human Resources"
+    active: true
+  - id: "sales"
+    name: "Sales"
+    active: true
+  - id: "operations"
+    name: "Operations"
+    active: true
+
+reason_categories:
+  - id: "noise"
+    label: "Noise or Distraction"
+  - id: "workload"
+    label: "Workload"
+
+client:
+  server_url: "http://localhost:5000"
+  reminder_frequency: "weekly"
+  entry_char_limit: 280
+  retention_days: 90
+
+floorplan:
+  enabled: true
+  active_floorplan_id: null
+
+database:
+  # Use a temp file (not :memory:) — SQLAlchemy's session factory
+  # needs a persistent file when test requests span multiple connections.
+  # The test suite overrides this path via monkeypatching anyway.
+  path: "/tmp/letterbox_test.db"

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Stress Letterbox — Admin{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <nav class="sidebar">
+    <div class="sidebar-brand">
+      <span class="brand-icon">✉</span>
+      <div>
+        <div class="brand-name">Stress Letterbox</div>
+        <div class="brand-sub">Admin Terminal</div>
+      </div>
+    </div>
+    <ul class="nav-links">
+      <li><a href="{{ url_for('dashboard.overview') }}" class="{{ 'active' if request.endpoint == 'dashboard.overview' }}">
+        <span class="nav-icon">◈</span> Overview
+      </a></li>
+      <li><a href="{{ url_for('dashboard.entries_page') }}" class="{{ 'active' if request.endpoint == 'dashboard.entries_page' }}">
+        <span class="nav-icon">☰</span> All Entries
+      </a></li>
+      {% if floorplan_enabled %}
+      <li><a href="{{ url_for('dashboard.heatmap') }}" class="{{ 'active' if request.endpoint == 'dashboard.heatmap' }}">
+        <span class="nav-icon">⊹</span> Floor Plan
+      </a></li>
+      {% endif %}
+    </ul>
+    <div class="sidebar-footer">
+      <a href="{{ url_for('auth.logout') }}" class="logout-link">Sign out</a>
+    </div>
+  </nav>
+
+  <main class="main-content">
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <div class="flash-messages">
+          {% for msg in messages %}<div class="flash">{{ msg }}</div>{% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

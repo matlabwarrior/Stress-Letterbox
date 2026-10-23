@@ -1,0 +1,33 @@
+version: "3.9"
+
+# ============================================================
+# Workplace Stress Letterbox — Docker Compose
+# ============================================================
+# Usage:
+#   1. Copy config.yaml.example to ./data/config.yaml and edit it
+#   2. docker compose up -d
+#   3. Admin dashboard: http://localhost:5000/admin
+# ============================================================
+
+services:
+  letterbox:
+    build: .
+    container_name: stress-letterbox
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      # Persistent database and floor plan uploads
+      - ./data/db:/app/server/data
+      # Config mounted read-only — edit on host, restart to apply
+      - ./data/config.yaml:/app/config.yaml:ro
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/departments')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+# ── Volume declarations ────────────────────────────────────
+# (Using bind mounts above for easy admin access to the db file)

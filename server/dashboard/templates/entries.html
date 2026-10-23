@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+
+{% block title %}Entries — Stress Letterbox Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>All Entries</h1>
+  <div class="header-actions">
+    <a id="export-csv" href="{{ url_for('dashboard.export') }}?format=csv" class="btn-ghost">Export CSV</a>
+    <a id="export-json" href="{{ url_for('dashboard.export') }}?format=json" class="btn-ghost">Export JSON</a>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="filter-bar">
+  <div class="filter-group">
+    <label>Department</label>
+    <select id="f-dept">
+      <option value="">All departments</option>
+      {% for dept in departments %}
+        <option value="{{ dept.id }}">{{ dept.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="filter-group">
+    <label>Stress Level</label>
+    <select id="f-level">
+      <option value="">Any</option>
+      {% for lvl, lbl in [('1','Low'),('2','Mild'),('3','Moderate'),('4','High'),('5','Intense')] %}
+        <option value="{{ lvl }}">{{ lvl }} – {{ lbl }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="filter-group">
+    <label>Reason</label>
+    <select id="f-reason">
+      <option value="">Any</option>
+      {% for cat in reason_categories %}
+        <option value="{{ cat.id }}">{{ cat.label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="filter-group">
+    <label>From</label>
+    <input type="date" id="f-from">
+  </div>
+  <div class="filter-group">
+    <label>To</label>
+    <input type="date" id="f-to">
+  </div>
+  <button id="apply-btn" class="btn-primary btn-sm">Apply</button>
+  <button id="clear-btn" class="btn-ghost btn-sm">Clear</button>
+</div>
+
+<!-- Result summary -->
+<div class="result-meta" id="result-meta">Loading…</div>
+
+<!-- Entries table -->
+<div class="table-card">
+  <table class="data-table" id="entries-table">
+    <thead>
+      <tr>
+        <th>Timestamp</th>
+        <th>Department</th>
+        <th>Level</th>
+        <th>Reason</th>
+        <th>Location</th>
+      </tr>
+    </thead>
+    <tbody id="entries-tbody">
+      <tr><td colspan="5" class="loading-cell">Loading entries…</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Pagination -->
+<div class="pagination" id="pagination"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const DEPT_MAP   = {{ departments | tojson }};
+const REASON_MAP = {{ reason_categories | tojson }};
+const EXPORT_BASE  = "{{ url_for('dashboard.export') }}";
+const ENTRIES_BASE = "{{ url_for('dashboard.entries_api') }}";
+
+const LEVEL_LABELS = {1:'Low', 2:'Mild', 3:'Moderate', 4:'High', 5:'Intense'};
+const LEVEL_COLOURS = {
+  1:'#a8c5a0', 2:'#d4c88a', 3:'#e8b96a', 4:'#d4845a', 5:'#b85c4a'
+};
+
+let currentPage = 1;
+const PER_PAGE = 50;
+
+function getDeptName(id) {
+  const d = DEPT_MAP.find(d => d.id === id);
+  return d ? d.name : id;
+}
+function getReasonLabel(id) {
+  if (!id) return '—';
+  const r = REASON_MAP.find(r => r.id === id);
+  return r ? r.label : id;
+}
+
+function buildParams(page) {
+  const p = new URLSearchParams();
+  const dept   = document.getElementById('f-dept').value;
+  const level  = document.getElementById('f-level').value;
+  const reason = document.getElementById('f-reason').value;
+  const from   = document.getElementById('f-from').value;
+  const to     = document.getElementById('f-to').value;
+  if (dept)   p.set('department', dept);
+  if (level)  p.set('stress_level', level);
+  if (reason) p.set('reason_category', reason);
+  if (from)   p.set('date_from', from);
+  if (to)     p.set('date_to', to);
+  p.set('page', page);
+  p.set('per_page', PER_PAGE);
+  return p;
+}
+
+function updateExportLinks(params) {
+  const base = new URLSearchParams(params);
+  base.delete('page'); base.delete('per_page');
+  const csvP = new URLSearchParams(base); csvP.set('format', 'csv');
+  const jsnP = new URLSearchParams(base); jsnP.set('format', 'json');
+  document.getElementById('export-csv').href  = EXPORT_BASE  + '?' + csvP;
+  document.getElementById('export-json').href = EXPORT_BASE  + '?' + jsnP;
+}
+
+function formatTimestamp(iso) {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString('en-GB', {
+      day:'2-digit', month:'short', year:'numeric',
+      hour:'2-digit', minute:'2-digit'
+    });
+  } catch { return iso; }
+}
+
+function renderBadge(level) {
+  const colour = LEVEL_COLOURS[level] || '#ccc';
+  const label  = LEVEL_LABELS[level]  || level;
+  return `<span style="background:${colour}20;color:${colour};border:1px solid ${colour}60;
+    border-radius:5px;font-size:11px;font-weight:600;padding:2px 7px;">
+    ${level} · ${label}</span>`;
+}
+
+async function loadEntries(page) {
+  currentPage = page;
+  const params = buildParams(page);
+  updateExportLinks(params);
+
+  const tbody = document.getElementById('entries-tbody');
+  tbody.innerHTML = '<tr><td colspan="5" class="loading-cell">Loading…</td></tr>';
+
+  try {
+    const resp = await fetch(ENTRIES_BASE + '?' + params.toString());
+    const data = await resp.json();
+
+    document.getElementById('result-meta').textContent =
+      `${data.total} entr${data.total === 1 ? 'y' : 'ies'} · ` +
+      `page ${data.page} of ${Math.ceil(data.total / PER_PAGE) || 1}`;
+
+    if (!data.entries.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="loading-cell" style="color:#b0a898">No entries match these filters.</td></tr>';
+      renderPagination(0, page);
+      return;
+    }
+
+    tbody.innerHTML = data.entries.map(e => `
+      <tr>
+        <td style="white-space:nowrap;font-size:12px;color:#6b6560">${formatTimestamp(e.timestamp)}</td>
+        <td>${getDeptName(e.department)}</td>
+        <td>${renderBadge(e.stress_level)}</td>
+        <td style="font-size:12px">${getReasonLabel(e.reason_category)}</td>
+        <td style="font-size:11px;color:#9a8f84;text-align:center">
+          ${(e.floor_x !== null && e.floor_y !== null) ? '📍' : ''}
+        </td>
+      </tr>
+    `).join('');
+
+    renderPagination(data.total, page);
+  } catch (err) {
+    tbody.innerHTML = '<tr><td colspan="5" class="loading-cell" style="color:#b85c4a">Error loading entries.</td></tr>';
+    console.error(err);
+  }
+}
+
+function renderPagination(total, current) {
+  const pages = Math.ceil(total / PER_PAGE);
+  const el = document.getElementById('pagination');
+  if (pages <= 1) { el.innerHTML = ''; return; }
+
+  let html = '';
+  const start = Math.max(1, current - 3);
+  const end   = Math.min(pages, current + 3);
+
+  if (start > 1) html += `<button class="page-btn" data-page="1">1</button><span class="page-ellipsis">…</span>`;
+  for (let p = start; p <= end; p++) {
+    html += `<button class="page-btn${p === current ? ' active' : ''}" data-page="${p}">${p}</button>`;
+  }
+  if (end < pages) html += `<span class="page-ellipsis">…</span><button class="page-btn" data-page="${pages}">${pages}</button>`;
+
+  el.innerHTML = html;
+  el.querySelectorAll('.page-btn').forEach(btn => {
+    btn.addEventListener('click', () => loadEntries(parseInt(btn.dataset.page)));
+  });
+}
+
+document.getElementById('apply-btn').addEventListener('click', () => loadEntries(1));
+document.getElementById('clear-btn').addEventListener('click', () => {
+  ['f-dept','f-level','f-reason','f-from','f-to'].forEach(id => {
+    const el = document.getElementById(id);
+    el.tagName === 'SELECT' ? el.selectedIndex = 0 : el.value = '';
+  });
+  loadEntries(1);
+});
+
+document.addEventListener('DOMContentLoaded', () => loadEntries(1));
+</script>
+
+<style>
+.result-meta {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+  min-height: 20px;
+}
+.loading-cell {
+  text-align: center;
+  padding: 40px !important;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+.pagination {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+.page-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 11px;
+  font-family: var(--font);
+  font-size: 0.82rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.12s;
+}
+.page-btn:hover { background: var(--surface-alt); color: var(--text-primary); }
+.page-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  font-weight: 600;
+}
+.page-ellipsis { color: var(--text-muted); font-size: 0.82rem; padding: 0 2px; }
+</style>
+{% endblock %}

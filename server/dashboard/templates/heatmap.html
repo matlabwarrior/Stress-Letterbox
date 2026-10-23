@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Floor Plan Heatmap — Stress Letterbox Admin{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Floor Plan Heatmap</h1>
+</div>
+
+<!-- Upload floor plan -->
+<details class="upload-panel">
+  <summary>Upload / Change Floor Plan</summary>
+  <form id="upload-form" class="upload-form">
+    <div class="form-group">
+      <label>Floor plan image (PNG, JPG, SVG)</label>
+      <input type="file" id="fp-file" name="file" accept=".png,.jpg,.jpeg,.svg" required>
+    </div>
+    <div class="form-group">
+      <label>Label (e.g. "Floor 2 – East Wing")</label>
+      <input type="text" id="fp-label" name="label" placeholder="Optional label">
+    </div>
+    <button type="button" id="upload-btn" class="btn-primary btn-sm">Upload</button>
+    <span id="upload-status" class="upload-status"></span>
+  </form>
+</details>
+
+<!-- Heatmap filters -->
+<div class="filter-bar">
+  <div class="filter-group">
+    <label>Department</label>
+    <select id="f-dept">
+      <option value="">All</option>
+      {% for dept in departments %}
+        <option value="{{ dept.id }}">{{ dept.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="filter-group">
+    <label>Stress Level</label>
+    <select id="f-level">
+      <option value="">Any</option>
+      {% for lvl, lbl in [('1','Low'),('2','Mild'),('3','Moderate'),('4','High'),('5','Intense')] %}
+        <option value="{{ lvl }}">{{ lvl }} – {{ lbl }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="filter-group">
+    <label>Reason</label>
+    <select id="f-reason">
+      <option value="">Any</option>
+      {% for cat in reason_categories %}
+        <option value="{{ cat.id }}">{{ cat.label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="filter-group">
+    <label>From</label>
+    <input type="date" id="f-from">
+  </div>
+  <div class="filter-group">
+    <label>To</label>
+    <input type="date" id="f-to">
+  </div>
+  <button id="hm-apply" class="btn-primary btn-sm">Apply</button>
+</div>
+
+<div id="hm-status" class="hm-status"></div>
+
+<div id="heatmap-container">
+  <div id="map"></div>
+  <div id="no-floorplan-msg" class="no-floorplan-msg" style="display:none">
+    No floor plan uploaded yet. Use the panel above to upload one.
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
+<script src="{{ url_for('static', filename='js/heatmap.js') }}"></script>
+{% endblock %}
