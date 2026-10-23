@@ -98,7 +98,7 @@ pytest tests/test_anonymisation_audit.py -v
 ## Quick start (one machine)
 
 Requires Python 3.10+. Server and client run side by side, talking over
-`localhost`. [`CLAUDE.md`](CLAUDE.md) has the full step-by-step demo
+`localhost`. [`INSTRUCTIONS.md`](INSTRUCTIONS.md) has the full step-by-step demo
 walkthrough.
 
 ```bash
@@ -230,7 +230,8 @@ on Python 3.10 and 3.12 for every push and pull request.
 ├── config.yaml.example          # Copy to config.yaml (never commit config.yaml)
 ├── Dockerfile, docker-compose.yml
 ├── launch-client / launch-server (.bat for Windows, .sh for Linux/macOS)
-└── CLAUDE.md                    # Step-by-step single-machine demo guide
+├── INSTRUCTIONS.md              # Step-by-step single-machine demo guide
+└── CLAUDE.md                    # Loads INSTRUCTIONS.md for Claude Code sessions
 ```
 
 ---

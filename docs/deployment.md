@@ -92,7 +92,7 @@ systemctl status stress-letterbox
 Use the `Dockerfile` already in the repo root (don't duplicate it here — a
 second copy just drifts out of sync). It runs the app under `gunicorn`
 rather than Flask's own dev server, since that's what `python server/app.py`
-would otherwise use — fine for the single-machine demo in `CLAUDE.md`, not
+would otherwise use — fine for the single-machine demo in `INSTRUCTIONS.md`, not
 something to expose beyond that.
 
 ```bash
