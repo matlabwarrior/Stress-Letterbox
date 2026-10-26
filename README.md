@@ -97,7 +97,7 @@ pytest tests/test_anonymisation_audit.py -v
 
 ## Quick start (one machine)
 
-Requires Python 3.10+. Server and client run side by side, talking over
+Requires Python 3.11+. Server and client run side by side, talking over
 `localhost`. [`INSTRUCTIONS.md`](INSTRUCTIONS.md) has the full step-by-step demo
 walkthrough.
 
@@ -177,7 +177,7 @@ pytest tests/ -v
 admin login (CSRF protection and rate limiting), the floor plan on/off
 switch, exports, and the privacy audit. They use their own temporary
 database, so the server doesn't need to be running. GitHub Actions runs them
-on Python 3.10 and 3.12 for every push and pull request.
+on Python 3.11, 3.12 and 3.13 for every push and pull request.
 
 ---
 

@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 name = "workplace-stress-letterbox"
 version = "1.0.0"
 description = "A privacy-first, locally hosted workplace stress logging system"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 readme = "README.md"
 
 # Install all dependencies (client + server together for dev convenience).
@@ -49,4 +49,4 @@ python_files = ["test_*.py"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"

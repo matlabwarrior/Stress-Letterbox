@@ -3,7 +3,7 @@
 ## Linux Server Deployment (Primary)
 
 ### Prerequisites
-- Python 3.10+
+- Python 3.11+
 - pip
 - (Optional) Docker
 
