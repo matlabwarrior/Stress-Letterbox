@@ -20,7 +20,6 @@ from server.extensions import limiter
 from server.models.db import init_db
 from server.api.submissions import bp as submissions_bp
 from server.api.departments import bp as departments_bp
-from server.api.floorplan import bp as floorplan_bp
 from server.dashboard.auth import bp as auth_bp
 from server.dashboard.routes import bp as dashboard_bp
 
@@ -75,15 +74,9 @@ def create_app() -> Flask:
         """Make `request` available in all templates."""
         return {"request": request}
 
-    @app.context_processor
-    def inject_floorplan_flag():
-        """So base.html can hide the Floor Plan nav link when it's disabled."""
-        return {"floorplan_enabled": config_module.is_floorplan_enabled()}
-
     # Register blueprints
     app.register_blueprint(submissions_bp)
     app.register_blueprint(departments_bp)
-    app.register_blueprint(floorplan_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
 

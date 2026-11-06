@@ -56,6 +56,14 @@ def get_reason_categories() -> list[dict]:
     return load_config()["reason_categories"]
 
 
+def get_solution_categories() -> list[dict]:
+    """
+    Suggested solutions an employee can attach to an entry. Optional section:
+    a config.yaml written before this feature existed just offers none.
+    """
+    return load_config().get("solution_categories") or []
+
+
 def get_department_ids() -> set[str]:
     """
     Every configured department id, including inactive ones. Submissions are
@@ -69,14 +77,8 @@ def get_reason_ids() -> set[str]:
     return {r["id"] for r in load_config()["reason_categories"]}
 
 
-def is_floorplan_enabled() -> bool:
-    """
-    Single source of truth for whether the floor plan / location-tagging
-    feature is turned on. Checked independently by every route that touches
-    it (client-facing, admin-facing, and the heatmap dashboard) so there's
-    no single place a check can be forgotten.
-    """
-    return bool(load_config().get("floorplan", {}).get("enabled", True))
+def get_solution_ids() -> set[str]:
+    return {s["id"] for s in get_solution_categories()}
 
 
 def reload_config():

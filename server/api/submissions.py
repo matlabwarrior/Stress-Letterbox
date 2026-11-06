@@ -10,7 +10,7 @@ Any field not in that list is silently ignored. This is enforced by _extract_ent
 
 from datetime import datetime
 from flask import Blueprint, request, jsonify
-from server.config import get_department_ids, get_reason_ids
+from server.config import get_department_ids, get_reason_ids, get_solution_ids
 from server.models import db as db_module
 from server.models.db import Entry
 
@@ -20,21 +20,22 @@ bp = Blueprint("submissions", __name__)
 # elaboration is deliberately NOT here: free text never crosses this boundary,
 # even if a client sends it. See shared/constants.py for why.
 _ACCEPTED_FIELDS = {"department", "timestamp", "stress_level",
-                    "reason_category", "floor_x", "floor_y"}
+                    "reason_category", "solution_category"}
 
 
 def _extract_entry(raw: dict,
                    valid_departments: set[str] | None = None,
-                   valid_reasons: set[str] | None = None) -> dict | None:
+                   valid_reasons: set[str] | None = None,
+                   valid_solutions: set[str] | None = None) -> dict | None:
     """
     Extract only anonymisation-safe fields from a raw submission dict.
     Any field not in _ACCEPTED_FIELDS is dropped here.
     Returns None if required fields are missing or invalid.
 
-    valid_departments / valid_reasons come from config.yaml (passed in by the
-    route, so this stays a pure function the privacy audit can call without a
-    config file). An unknown department rejects the entry; an unknown reason
-    is just dropped, since reason is optional.
+    valid_departments / valid_reasons / valid_solutions come from config.yaml
+    (passed in by the route, so this stays a pure function the privacy audit
+    can call without a config file). An unknown department rejects the entry;
+    an unknown reason or solution is just dropped, since both are optional.
     """
     if not isinstance(raw, dict):
         return None
@@ -52,6 +53,12 @@ def _extract_entry(raw: dict,
     elif valid_reasons is not None and reason not in valid_reasons:
         reason = None
 
+    solution = raw.get("solution_category")
+    if not isinstance(solution, str) or not solution:
+        solution = None
+    elif valid_solutions is not None and solution not in valid_solutions:
+        solution = None
+
     try:
         ts = datetime.fromisoformat(raw["timestamp"])
     except (KeyError, ValueError):
@@ -67,22 +74,12 @@ def _extract_entry(raw: dict,
     except (TypeError, ValueError):
         return None
 
-    floor_x = floor_y = None
-    try:
-        if raw.get("floor_x") is not None and raw.get("floor_y") is not None:
-            fx, fy = float(raw["floor_x"]), float(raw["floor_y"])
-            if 0.0 <= fx <= 1.0 and 0.0 <= fy <= 1.0:
-                floor_x, floor_y = fx, fy
-    except (TypeError, ValueError):
-        pass  # Invalid coords — treat as no location
-
     return {
         "department":      dept,
         "timestamp":       ts,
         "stress_level":    level,
         "reason_category": reason,
-        "floor_x":         floor_x,
-        "floor_y":         floor_y,
+        "solution_category": solution,
     }
 
 
@@ -102,11 +99,13 @@ def submit():
     errors = 0
     valid_departments = get_department_ids()
     valid_reasons = get_reason_ids()
+    valid_solutions = get_solution_ids()
 
     session = db_module.SessionLocal()
     try:
         for raw in raw_entries:
-            extracted = _extract_entry(raw, valid_departments, valid_reasons)
+            extracted = _extract_entry(raw, valid_departments, valid_reasons,
+                                       valid_solutions)
             if extracted is None:
                 errors += 1
                 continue

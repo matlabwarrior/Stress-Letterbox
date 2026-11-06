@@ -26,6 +26,11 @@ from client.ui.styles import CLIENT_STYLESHEET
 from shared.constants import STRESS_LEVELS
 
 
+def _category_label(categories: list, cat_id: str) -> str:
+    """Label for a reason/solution id, falling back to the id itself."""
+    return next((c["label"] for c in categories if c["id"] == cat_id), cat_id)
+
+
 class EntryCard(QFrame):
     """A single entry displayed in the letterbox."""
     delete_requested = pyqtSignal(int)
@@ -36,10 +41,12 @@ class EntryCard(QFrame):
         4: "#d4845a", 5: "#b85c4a"
     }
 
-    def __init__(self, entry: dict, reason_categories: list, parent=None):
+    def __init__(self, entry: dict, reason_categories: list,
+                 solution_categories: list, parent=None):
         super().__init__(parent)
         self.entry = entry
         self.reason_categories = reason_categories
+        self.solution_categories = solution_categories
         self.setObjectName("EntryCard")
         self._build()
 
@@ -105,16 +112,12 @@ class EntryCard(QFrame):
             no_desc.setStyleSheet("color: #b0a898; font-style: italic; font-size: 12px;")
             layout.addWidget(no_desc)
 
-        # Metadata row: reason + location tag
+        # Metadata row: reason + suggested solution
         meta_parts = []
         if cat := self.entry.get("reason_category"):
-            cat_label = next(
-                (c["label"] for c in self.reason_categories if c["id"] == cat),
-                cat
-            )
-            meta_parts.append(f"📌 {cat_label}")
-        if self.entry.get("floor_x") is not None:
-            meta_parts.append("📍 Location tagged")
+            meta_parts.append(f"📌 {_category_label(self.reason_categories, cat)}")
+        if sol := self.entry.get("solution_category"):
+            meta_parts.append(f"💡 {_category_label(self.solution_categories, sol)}")
         if meta_parts:
             meta = QLabel("  ·  ".join(meta_parts))
             meta.setObjectName("EntryMeta")
@@ -122,16 +125,14 @@ class EntryCard(QFrame):
 
 
 class EditEntryDialog(QDialog):
-    """Edit an entry's description, reason category, and elaboration."""
+    """Edit an entry's description, reason, suggested solution, and elaboration."""
 
     def __init__(self, entry: dict, reason_categories: list,
-                 floorplan_data: bytes | None, parent=None):
+                 solution_categories: list, parent=None):
         super().__init__(parent)
         self.entry = entry
         self.reason_categories = reason_categories
-        self.floorplan_data = floorplan_data
-        self.floor_x = entry.get("floor_x")
-        self.floor_y = entry.get("floor_y")
+        self.solution_categories = solution_categories
         self.setWindowTitle("Edit entry")
         self.setMinimumWidth(440)
         self.setStyleSheet(CLIENT_STYLESHEET)
@@ -159,32 +160,27 @@ class EditEntryDialog(QDialog):
             self.reason_combo.setCurrentIndex(idx)
         layout.addWidget(self.reason_combo)
 
+        # Only offered when the server's config.yaml lists solutions
+        self.solution_combo = None
+        if self.solution_categories:
+            layout.addWidget(QLabel(
+                "What would help? (optional) — this is shared when you submit"
+            ))
+            self.solution_combo = QComboBox()
+            self.solution_combo.addItem("— No suggestion —", "")
+            for sol in self.solution_categories:
+                self.solution_combo.addItem(sol["label"], sol["id"])
+            idx = self.solution_combo.findData(self.entry.get("solution_category") or "")
+            if idx >= 0:
+                self.solution_combo.setCurrentIndex(idx)
+            layout.addWidget(self.solution_combo)
+
         layout.addWidget(QLabel("Personal notes (optional) — stays on this device, never sent"))
         self.elab_input = QTextEdit()
         self.elab_input.setPlaceholderText("A note to yourself — this never leaves your device…")
         self.elab_input.setPlainText(self.entry.get("elaboration") or "")
         self.elab_input.setMaximumHeight(70)
         layout.addWidget(self.elab_input)
-
-        # Floor plan pin (optional)
-        if self.floorplan_data:
-            fp_label = QLabel("Want to mark where you were? (optional)")
-            fp_label.setStyleSheet("color: #6a5f55; font-size: 12px;")
-            layout.addWidget(fp_label)
-
-            self.fp_widget = FloorPlanPicker(
-                self.floorplan_data,
-                initial_x=self.floor_x,
-                initial_y=self.floor_y,
-            )
-            self.fp_widget.pin_placed.connect(self._on_pin_placed)
-            layout.addWidget(self.fp_widget)
-
-            if self.floor_x is not None:
-                clear_fp = QPushButton("Remove location pin")
-                clear_fp.setObjectName("SecondaryButton")
-                clear_fp.clicked.connect(self._clear_pin)
-                layout.addWidget(clear_fp)
 
         # Buttons
         btn_row = QHBoxLayout()
@@ -199,74 +195,15 @@ class EditEntryDialog(QDialog):
         btn_row.addWidget(save_btn)
         layout.addLayout(btn_row)
 
-    def _on_pin_placed(self, x: float, y: float):
-        self.floor_x = x
-        self.floor_y = y
-
-    def _clear_pin(self):
-        self.floor_x = None
-        self.floor_y = None
-        if hasattr(self, "fp_widget"):
-            self.fp_widget.clear_pin()
-
     def get_values(self) -> dict:
         return {
             "description":     self.desc_input.toPlainText().strip(),
             "reason_category": self.reason_combo.currentData() or None,
+            "solution_category": (self.solution_combo.currentData() or None
+                                  if self.solution_combo else
+                                  self.entry.get("solution_category")),
             "elaboration":     self.elab_input.toPlainText().strip() or None,
-            "floor_x":         self.floor_x,
-            "floor_y":         self.floor_y,
         }
-
-
-class FloorPlanPicker(QLabel):
-    """
-    Clickable floor plan image for optional location pinning.
-    Emits pin_placed(x: float, y: float) as relative 0.0–1.0 coordinates.
-    """
-    pin_placed = pyqtSignal(float, float)
-
-    def __init__(self, image_data: bytes, initial_x=None, initial_y=None, parent=None):
-        super().__init__(parent)
-        self.pin_x = initial_x
-        self.pin_y = initial_y
-        self.setMaximumHeight(160)
-        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.setCursor(Qt.CursorShape.CrossCursor)
-        self.setToolTip("Click to place a pin where you were")
-        self.setStyleSheet("border: 1px solid #ddd5c8; border-radius: 8px;")
-
-        from PyQt6.QtGui import QPixmap
-        pixmap = QPixmap()
-        pixmap.loadFromData(image_data)
-        self._pixmap = pixmap.scaled(
-            360, 160,
-            Qt.AspectRatioMode.KeepAspectRatio,
-            Qt.TransformationMode.SmoothTransformation
-        )
-        self.setPixmap(self._pixmap)
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            # Calculate relative position within the image
-            label_w = self.width()
-            label_h = self.height()
-            img_w = self._pixmap.width()
-            img_h = self._pixmap.height()
-            # Account for centering
-            offset_x = (label_w - img_w) / 2
-            offset_y = (label_h - img_h) / 2
-            rel_x = (event.position().x() - offset_x) / img_w
-            rel_y = (event.position().y() - offset_y) / img_h
-            rel_x = max(0.0, min(1.0, rel_x))
-            rel_y = max(0.0, min(1.0, rel_y))
-            self.pin_x = rel_x
-            self.pin_y = rel_y
-            self.pin_placed.emit(rel_x, rel_y)
-
-    def clear_pin(self):
-        self.pin_x = None
-        self.pin_y = None
 
 
 class LetterboxWindow(QWidget):
@@ -277,16 +214,12 @@ class LetterboxWindow(QWidget):
         self.server_client = server_client
         self.config = config
         self.reason_categories = config.get("reason_categories", [])
-        self._floorplan_data = None
+        self.solution_categories = config.get("solution_categories", [])
         self.setWindowTitle("My Letterbox")
         self.setMinimumSize(520, 600)
         self.setStyleSheet(CLIENT_STYLESHEET)
-        self._load_floorplan()
         self._build_ui()
         self._refresh_entries()
-
-    def _load_floorplan(self):
-        self._floorplan_data = self.server_client.fetch_floorplan()
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
@@ -345,7 +278,7 @@ class LetterboxWindow(QWidget):
             return
 
         for entry in entries:
-            card = EntryCard(entry, self.reason_categories)
+            card = EntryCard(entry, self.reason_categories, self.solution_categories)
             card.delete_requested.connect(self._confirm_delete)
             card.edit_requested.connect(self._open_edit)
             self.entries_layout.insertWidget(self.entries_layout.count() - 1, card)
@@ -372,7 +305,8 @@ class LetterboxWindow(QWidget):
         entry = get_entry(entry_id)
         if not entry:
             return
-        dlg = EditEntryDialog(entry, self.reason_categories, self._floorplan_data, self)
+        dlg = EditEntryDialog(entry, self.reason_categories,
+                              self.solution_categories, self)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             update_entry(entry_id, **dlg.get_values())
             self._refresh_entries()
@@ -385,7 +319,8 @@ class LetterboxWindow(QWidget):
                 "You have no pending entries to submit.",
             )
             return
-        dlg = SubmitDialog(pending, self.server_client, self.reason_categories, self)
+        dlg = SubmitDialog(pending, self.server_client, self.reason_categories,
+                           self.solution_categories, self)
         dlg.exec()
         self._refresh_entries()
 
@@ -398,11 +333,12 @@ class SubmitDialog(QDialog):
     """
 
     def __init__(self, entries: list[dict], server_client: ServerClient,
-                 reason_categories: list, parent=None):
+                 reason_categories: list, solution_categories: list, parent=None):
         super().__init__(parent)
         self.entries = entries
         self.server_client = server_client
         self.reason_categories = reason_categories
+        self.solution_categories = solution_categories
         self.checkboxes = {}
         self.setWindowTitle("Review & Submit")
         self.setMinimumSize(480, 500)
@@ -418,8 +354,9 @@ class SubmitDialog(QDialog):
         title.setFont(QFont("Segoe UI", 14, QFont.Weight.DemiBold))
 
         desc = QLabel(
-            "Only department, timestamp, stress level, reason, and location (if tagged)\n"
-            "are sent — no names, no machine identifiers, and none of your written notes.\n"
+            "Only department, timestamp, stress level, reason, and suggested solution\n"
+            "are sent — no names, no machine identifiers, no location, and none of\n"
+            "your written notes.\n"
             "Untick any entry you'd rather not send right now."
         )
         desc.setWordWrap(True)
@@ -443,16 +380,15 @@ class SubmitDialog(QDialog):
 
             ts = datetime.fromisoformat(entry["timestamp"]).strftime("%d %b, %H:%M")
             level = STRESS_LEVELS.get(entry["stress_level"], str(entry["stress_level"]))
-            cat = entry.get("reason_category") or "—"
-            cat_label = next(
-                (c["label"] for c in self.reason_categories if c["id"] == cat),
-                cat
-            )
+            cat_label = _category_label(self.reason_categories,
+                                        entry.get("reason_category") or "—")
+            sol_label = _category_label(self.solution_categories,
+                                        entry.get("solution_category") or "—")
             summary = QLabel(
                 f"<b>{ts}</b> · Level {entry['stress_level']} ({level})"
                 f"<br><small style='color:#9a8f84'>"
                 f"Dept: {entry['department']} · Reason: {cat_label}"
-                f"{'· 📍' if entry.get('floor_x') is not None else ''}"
+                f" · Solution: {sol_label}"
                 f"</small>"
             )
             summary.setTextFormat(Qt.TextFormat.RichText)

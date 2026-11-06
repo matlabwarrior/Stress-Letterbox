@@ -42,6 +42,15 @@
       </select>
     </div>
     <div class="filter-group">
+      <label>Suggested solution</label>
+      <select name="solution_category">
+        <option value="">Any solution</option>
+        {% for sol in solution_categories %}
+          <option value="{{ sol.id }}" {{ 'selected' if request.args.get('solution_category') == sol.id }}>{{ sol.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-group">
       <label>From</label>
       <input type="date" name="date_from" value="{{ request.args.get('date_from', '') }}">
     </div>
@@ -98,6 +107,12 @@
     <h3>Top Reason Categories</h3>
     <canvas id="reason-chart" height="80"></canvas>
   </div>
+
+  <!-- By suggested solution -->
+  <div class="chart-card wide">
+    <h3>What Would Help (suggested solutions)</h3>
+    <canvas id="solution-chart" height="80"></canvas>
+  </div>
 </div>
 
 <!-- Department detail table -->
@@ -133,6 +148,8 @@ const BY_DEPT = {{ by_dept|tojson }};
 const BY_REASON = {{ by_reason|tojson }};
 const DEPT_NAMES = {{ departments|tojson }};
 const REASON_CATS = {{ reason_categories|tojson }};
+const BY_SOLUTION = {{ by_solution|tojson }};
+const SOLUTION_CATS = {{ solution_categories|tojson }};
 
 // Keep export links in sync with the active filter form values
 // so "Export CSV" always downloads the currently-filtered data.

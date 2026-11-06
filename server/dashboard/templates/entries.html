@@ -41,6 +41,15 @@
     </select>
   </div>
   <div class="filter-group">
+    <label>Suggested solution</label>
+    <select id="f-solution">
+      <option value="">Any</option>
+      {% for sol in solution_categories %}
+        <option value="{{ sol.id }}">{{ sol.label }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="filter-group">
     <label>From</label>
     <input type="date" id="f-from">
   </div>
@@ -64,7 +73,7 @@
         <th>Department</th>
         <th>Level</th>
         <th>Reason</th>
-        <th>Location</th>
+        <th>Suggested solution</th>
       </tr>
     </thead>
     <tbody id="entries-tbody">
@@ -81,6 +90,7 @@
 <script>
 const DEPT_MAP   = {{ departments | tojson }};
 const REASON_MAP = {{ reason_categories | tojson }};
+const SOLUTION_MAP = {{ solution_categories | tojson }};
 const EXPORT_BASE  = "{{ url_for('dashboard.export') }}";
 const ENTRIES_BASE = "{{ url_for('dashboard.entries_api') }}";
 
@@ -101,17 +111,24 @@ function getReasonLabel(id) {
   const r = REASON_MAP.find(r => r.id === id);
   return r ? r.label : id;
 }
+function getSolutionLabel(id) {
+  if (!id) return '—';
+  const s = SOLUTION_MAP.find(s => s.id === id);
+  return s ? s.label : id;
+}
 
 function buildParams(page) {
   const p = new URLSearchParams();
   const dept   = document.getElementById('f-dept').value;
   const level  = document.getElementById('f-level').value;
   const reason = document.getElementById('f-reason').value;
+  const solution = document.getElementById('f-solution').value;
   const from   = document.getElementById('f-from').value;
   const to     = document.getElementById('f-to').value;
   if (dept)   p.set('department', dept);
   if (level)  p.set('stress_level', level);
   if (reason) p.set('reason_category', reason);
+  if (solution) p.set('solution_category', solution);
   if (from)   p.set('date_from', from);
   if (to)     p.set('date_to', to);
   p.set('page', page);
@@ -174,9 +191,7 @@ async function loadEntries(page) {
         <td>${getDeptName(e.department)}</td>
         <td>${renderBadge(e.stress_level)}</td>
         <td style="font-size:12px">${getReasonLabel(e.reason_category)}</td>
-        <td style="font-size:11px;color:#9a8f84;text-align:center">
-          ${(e.floor_x !== null && e.floor_y !== null) ? '📍' : ''}
-        </td>
+        <td style="font-size:12px">${getSolutionLabel(e.solution_category)}</td>
       </tr>
     `).join('');
 
@@ -210,7 +225,7 @@ function renderPagination(total, current) {
 
 document.getElementById('apply-btn').addEventListener('click', () => loadEntries(1));
 document.getElementById('clear-btn').addEventListener('click', () => {
-  ['f-dept','f-level','f-reason','f-from','f-to'].forEach(id => {
+  ['f-dept','f-level','f-reason','f-solution','f-from','f-to'].forEach(id => {
     const el = document.getElementById(id);
     el.tagName === 'SELECT' ? el.selectedIndex = 0 : el.value = '';
   });

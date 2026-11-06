@@ -198,6 +198,7 @@ class LetterboxApp:
             # Fall back to local config if server unreachable
             self.config = {
                 "reason_categories": [],
+                "solution_categories": [],
                 "departments": [],
                 "entry_char_limit": 280,
                 "reminder_frequency": "weekly",

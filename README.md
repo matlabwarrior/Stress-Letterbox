@@ -29,8 +29,9 @@ beyond that.
 │   ║  ANONYMISATION BOUNDARY                                   ║ │
 │   ║  Only these fields ever cross it:                         ║ │
 │   ║    department, timestamp, stress_level, reason_category,  ║ │
-│   ║    floor_x, floor_y  (location: off by default)           ║ │
-│   ║  Never: names, PIN, machine name, IP, or any free text    ║ │
+│   ║    solution_category                                      ║ │
+│   ║  Never: names, PIN, machine name, IP, location, or any    ║ │
+│   ║  free text                                                ║ │
 │   ╚═══════════════════════════════════════════════════════════╝ │
 └───────────────────────────────┬─────────────────────────────────┘
                                 │  HTTP on the local network
@@ -45,13 +46,12 @@ beyond that.
 │   REST API  /api/*              Admin dashboard  /admin/*       │
 │   - submit (re-filters fields)  - overview & trends             │
 │   - departments, config         - filterable entries table      │
-│   - floorplan (off by default)  - CSV / JSON export             │
-│                                 - heatmap (off by default)      │
+│                                 - CSV / JSON export             │
 │                │                                                │
 │                ▼                                                │
 │   SQLite (server/data/letterbox.db)                             │
-│   tables: entries, floorplans (no user table, no identity       │
-│   columns; departments and reasons come from config.yaml)       │
+│   table: entries (no user table, no identity columns;           │
+│   departments, reasons and solutions come from config.yaml)     │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -64,7 +64,7 @@ locally until the employee explicitly reviews and submits.
 
 Privacy here is a property of the code, not a policy promise.
 
-- **One whitelist, enforced twice.** `shared/constants.py` defines the six
+- **One whitelist, enforced twice.** `shared/constants.py` defines the five
   fields that may be submitted. The client's `_build_payload()`
   (`client/api/submit.py`) builds each outbound entry from exactly those
   fields, and the server's `_extract_entry()` (`server/api/submissions.py`)
@@ -76,10 +76,13 @@ Privacy here is a property of the code, not a policy promise.
   be read out of context.
 - **No identities on the server.** No user accounts, no sessions, no machine
   identifiers. The database schema has nothing to re-identify.
-- **Location tagging is opt-in.** A precise timestamp combined with a floor
-  position can point to a single person, so the floor plan feature ships off
-  (`floorplan.enabled: false`). Every related route returns 404 until an admin
-  deliberately turns it on.
+- **Constructive, but still categorical.** Alongside the reason for the
+  stress, an employee can pick what would help (for example "Clearer
+  priorities" or "More realistic deadlines") from a list in `config.yaml`.
+  It's a fixed choice, never free text, so it carries no more identifying
+  detail than the reason does.
+- **No location.** A precise timestamp combined with where someone sits can
+  point to a single person, so the app doesn't record location at all.
 - **Coarse departments.** Configure departments of at least about five people,
   so a department label alone can't single anyone out.
 - **The user stays in control.** Entries can be edited or permanently deleted
@@ -148,8 +151,8 @@ Details, including Linux and Windows service setup, are in
 
 ## Configuration without code changes
 
-Departments, reason categories, reminder frequency, retention period and the
-floor plan feature all live in `config.yaml`. For example, to add a
+Departments, reason categories, suggested solutions, reminder frequency and
+retention period all live in `config.yaml`. For example, to add a
 department:
 
 ```yaml
@@ -173,9 +176,9 @@ pip install pytest
 pytest tests/ -v
 ```
 
-88 tests across client logic, the server API and its input validation,
-admin login (CSRF protection and rate limiting), the floor plan on/off
-switch, exports, and the privacy audit. They use their own temporary
+89 tests across client logic and database upgrades, the server API and
+its input validation, admin login (CSRF protection and rate limiting),
+dashboard filters, exports, and the privacy audit. They use their own temporary
 database, so the server doesn't need to be running. GitHub Actions runs them
 on Python 3.11, 3.12 and 3.13 for every push and pull request.
 
@@ -187,7 +190,7 @@ on Python 3.11, 3.12 and 3.13 for every push and pull request.
 |---|---|
 | Desktop client | PyQt6, pystray, Pillow, requests, bcrypt, SQLite (stdlib) |
 | Server | Python, Flask, Jinja2, SQLAlchemy 2, SQLite, bcrypt, Flask-Limiter, PyYAML |
-| Dashboard | Vanilla JavaScript, Chart.js, Leaflet.js + Leaflet.heat, hand-written CSS |
+| Dashboard | Vanilla JavaScript, Chart.js, hand-written CSS |
 | Deployment | Docker, Docker Compose, gunicorn |
 | Testing / CI | pytest, GitHub Actions |
 
@@ -219,8 +222,8 @@ on Python 3.11, 3.12 and 3.13 for every push and pull request.
 │   ├── app.py                   # App factory (create_app) + entry point
 │   ├── config.py                # config.yaml loader
 │   ├── extensions.py            # Rate limiter
-│   ├── models/db.py             # SQLAlchemy models (entries, floorplans)
-│   ├── api/                     # submit (re-filters fields), departments, floorplan
+│   ├── models/db.py             # SQLAlchemy model (entries) + upgrades for older databases
+│   ├── api/                     # submit (re-filters fields), departments + client config
 │   ├── dashboard/               # Admin login, routes, templates, static assets
 │   └── data/                    # SQLite database lives here (not in git)
 ├── shared/constants.py          # SUBMISSION_FIELDS: the single field whitelist

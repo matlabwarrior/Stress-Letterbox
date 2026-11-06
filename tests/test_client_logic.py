@@ -308,18 +308,44 @@ class TestEntryLifecycle:
             description="updated text",
             stress_level=3,
             reason_category="workload",
+            solution_category="clearer_priorities",
             elaboration="More context",
-            floor_x=0.25,
-            floor_y=0.75,
         )
         entry = get_entry(eid)
 
         assert entry["description"]     == "updated text"
         assert entry["stress_level"]    == 3
         assert entry["reason_category"] == "workload"
+        assert entry["solution_category"] == "clearer_priorities"
         assert entry["elaboration"]     == "More context"
-        assert abs(entry["floor_x"] - 0.25) < 0.001
-        assert abs(entry["floor_y"] - 0.75) < 0.001
+
+    def test_init_db_upgrades_older_database(self, tmp_path, monkeypatch):
+        """A local database from before suggested solutions gains the column
+        on next launch, and its existing entries are kept."""
+        import sqlite3
+        import client.storage.db as db_mod
+        path = tmp_path / "old.db"
+        monkeypatch.setattr(db_mod, "get_db_path", lambda: str(path))
+
+        conn = sqlite3.connect(path)
+        conn.execute("""CREATE TABLE entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, description TEXT NOT NULL,
+            stress_level INTEGER NOT NULL, timestamp TEXT NOT NULL,
+            department TEXT NOT NULL, reason_category TEXT, elaboration TEXT,
+            floor_x REAL, floor_y REAL, submitted INTEGER DEFAULT 0,
+            submitted_at TEXT)""")
+        conn.execute("""INSERT INTO entries (description, stress_level, timestamp, department)
+                        VALUES ('kept', 2, '2024-01-01T09:00:00+00:00', 'hr')""")
+        conn.commit()
+        conn.close()
+
+        db_mod.init_db()
+
+        from client.storage.entries import get_all_entries
+        entries = get_all_entries()
+        assert len(entries) == 1
+        assert entries[0]["description"] == "kept"
+        assert entries[0]["solution_category"] is None
 
     def test_update_entry_cannot_change_timestamp(self, tmp_path, monkeypatch):
         """timestamp is auto-set and must not be user-editable."""

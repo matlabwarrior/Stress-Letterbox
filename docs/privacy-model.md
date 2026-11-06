@@ -54,13 +54,14 @@ When you choose to submit, the following fields — and only these fields — ar
 | `timestamp` | `"2024-06-15T10:30:00"` | When you logged the event |
 | `stress_level` | `3` | A number from 1 to 5 |
 | `reason_category` | `"Workload"` | From the dropdown list, optional |
-| `floor_x` / `floor_y` | `0.45, 0.62` | Where you were on the floor plan, optional — **only if your organisation has explicitly turned this feature on**; it ships off by default |
+| `solution_category` | `"Clearer priorities"` | What you think would help, from a dropdown list, optional |
 
 **Nothing else is sent.** Specifically, the following are never transmitted:
 
 - Your name
 - Your PIN or any hash of it
 - Your computer's name or IP address
+- Where you were — the app has no location feature
 - Any account identifier
 - **Any free text you write, ever** — neither the quick-log note nor the "more detail" you can add later leaves your device, under any configuration. There is no setting that changes this.
 - Any cookie, session token, or device fingerprint
@@ -82,12 +83,16 @@ The central server stores only the fields listed in the table above. Its databas
 An admin with direct access to the database file sees rows like:
 
 ```
-id | department | timestamp           | stress_level | reason_category | floor_x | floor_y
----|------------|---------------------|--------------|-----------------|---------|--------
-1  | Finance    | 2024-06-15 10:30:00 | 3            | Workload        |         |
-2  | IT         | 2024-06-15 14:00:00 | 4            | Noise           |         |
-3  | Finance    | 2024-06-16 09:15:00 | 2            |                 |         |
+id | department | timestamp           | stress_level | reason_category | solution_category
+---|------------|---------------------|--------------|-----------------|-------------------
+1  | Finance    | 2024-06-15 10:30:00 | 3            | Workload        | Clearer priorities
+2  | IT         | 2024-06-15 14:00:00 | 4            | Noise           | Quiet space
+3  | Finance    | 2024-06-16 09:15:00 | 2            |                 |
 ```
+
+The suggested solution, like the reason, is picked from a fixed list the
+organisation sets up — it is never something you type, so it can't carry
+details about you.
 
 (The database schema still has an `elaboration` column for historical reasons —
 see "Audit and verification" below — but nothing ever writes to it, and no
@@ -123,8 +128,6 @@ The system prevents direct identification. However, it cannot prevent *statistic
 
 - **Very small departments** — If a department has only one or two people, any entry from that department can only have come from one of them. For this reason, departments should be configured at a coarse level (minimum recommended: 5 people per department). The system administrator is responsible for this configuration.
 
-- **Combining timestamp and floor location** — If floor location tagging is turned on and you submit an entry with a precise timestamp and floor plan location, and the only person on that floor at that time was you, that combination could theoretically identify you. This is exactly why the feature ships **off by default** (`floorplan.enabled: false` in `config.yaml`) — an organisation has to make a deliberate, informed decision to turn it on.
-
 Free-text re-identification (someone describing a unique situation only they
 experienced) is not on this list — it's not a residual risk to manage,
 because that text structurally never reaches the server in the first place.
@@ -135,10 +138,10 @@ because that text structurally never reaches the server in the first place.
 
 **The admin can:**
 - See aggregated stress trends by department and time period
-- Filter entries by department, stress level, reason category, and date
+- See which solutions employees suggest most often
+- Filter entries by department, stress level, reason category, suggested solution, and date
 - Export filtered data as CSV or JSON
 - Add or rename departments
-- *If the organisation has explicitly turned the feature on* (`floorplan.enabled: true`): see a floor plan heatmap of where entries were located, and upload a floor plan image
 
 **The admin cannot:**
 - See who submitted any entry
@@ -146,7 +149,7 @@ because that text structurally never reaches the server in the first place.
 - Access your device
 - Recover a deleted entry
 - Create accounts or log in as users (there are no user accounts)
-- See floor plan locations unless location tagging has been deliberately enabled (off by default)
+- See where you were when you logged an entry — location is never recorded.
 
 ---
 

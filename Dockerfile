@@ -26,7 +26,7 @@ COPY shared/ ./shared/
 # config.yaml is mounted as a volume at runtime — not baked into the image
 
 # Create data directory with correct ownership
-RUN mkdir -p server/data server/data/floorplans && \
+RUN mkdir -p server/data && \
     chown -R letterbox:letterbox /app
 
 USER letterbox

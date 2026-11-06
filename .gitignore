@@ -26,7 +26,7 @@ server/data/*.db
 server/data/*.db-wal
 server/data/*.db-shm
 
-# Floor plan uploads (back up separately)
+# Floor plan uploads from older versions (feature since removed)
 server/data/floorplans/
 
 # Client databases are stored in OS app-data, not here.

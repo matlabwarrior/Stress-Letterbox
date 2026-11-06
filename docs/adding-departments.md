@@ -1,4 +1,4 @@
-# Adding Departments, Reason Categories, and Floor Plans
+# Adding Departments, Reason Categories, and Suggested Solutions
 
 ## Departments
 
@@ -56,20 +56,24 @@ reason_categories:
 
 ---
 
-## Floor Plans
+## Suggested Solutions
 
-Floor plans are uploaded through the admin dashboard at `/admin/heatmap`.
+The "What would help?" choices employees can attach to an entry. Same
+process — edit `config.yaml` and restart:
 
-1. Navigate to **Floor Plan** in the admin sidebar
-2. Expand **Upload / Change Floor Plan**
-3. Upload a PNG, JPG, or SVG image
-4. The new plan becomes active immediately — existing submissions with coordinates are re-mapped to the new image automatically (coordinates are stored as relative 0–1 percentages, so they remain valid across image changes if the physical layout hasn't changed)
+```yaml
+solution_categories:
+  - id: "my_new_solution"
+    label: "My New Suggestion"
+```
 
-### Multiple floor plans
+Phrase labels as something that would help ("Clearer priorities"), not as
+another complaint. Keep them as fixed choices: this list is shared with the
+server, so it should never invite personal detail. Leave the section out
+(or empty) and the client simply doesn't offer the option.
 
-Currently one floor plan is active at a time. If your organisation has multiple floors, a recommended approach is:
-- Use a combined overview image showing all floors
-- Or add a `floor_id` field to a future version of the config (the data model supports this via reason_category as a proxy)
+Don't reuse an `id` for a different meaning later — existing entries keep
+the id they were submitted with.
 
 ---
 

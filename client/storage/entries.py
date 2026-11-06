@@ -51,11 +51,12 @@ def get_entry(entry_id: int) -> dict | None:
 def update_entry(entry_id: int, **fields):
     """
     Update editable fields of an entry.
-    Allowed: description, stress_level, reason_category, elaboration, floor_x, floor_y.
+    Allowed: description, stress_level, reason_category, solution_category,
+    elaboration.
     NOT allowed: timestamp, department, submitted (use mark_submitted for that).
     """
     allowed = {"description", "stress_level", "reason_category",
-               "elaboration", "floor_x", "floor_y"}
+               "solution_category", "elaboration"}
     updates = {k: v for k, v in fields.items() if k in allowed}
     if not updates:
         return

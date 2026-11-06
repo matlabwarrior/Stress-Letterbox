@@ -34,15 +34,17 @@ reason_categories:
   - id: "workload"
     label: "Workload"
 
+solution_categories:
+  - id: "focus_time"
+    label: "Quiet space or focus time"
+  - id: "clearer_priorities"
+    label: "Clearer priorities"
+
 client:
   server_url: "http://localhost:5000"
   reminder_frequency: "weekly"
   entry_char_limit: 280
   retention_days: 90
-
-floorplan:
-  enabled: true
-  active_floorplan_id: null
 
 database:
   # Use a temp file (not :memory:) — SQLAlchemy's session factory

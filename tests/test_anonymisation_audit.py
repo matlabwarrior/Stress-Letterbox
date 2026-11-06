@@ -58,8 +58,7 @@ class TestLayer1_PayloadConstruction:
         "timestamp",
         "stress_level",
         "reason_category",
-        "floor_x",
-        "floor_y",
+        "solution_category",
     }
 
     # These fields must NEVER appear in a payload — either because they're
@@ -80,6 +79,8 @@ class TestLayer1_PayloadConstruction:
         "email",           # any email
         "ip_address",      # network address
         "user_id",         # any user identifier
+        "floor_x",         # location: feature removed, but an older local
+        "floor_y",         #   database can still have these columns
     }
 
     def test_payload_fields_match_exactly(self):
@@ -99,8 +100,7 @@ class TestLayer1_PayloadConstruction:
             "timestamp":       "2024-06-01T09:00:00+00:00",
             "stress_level":    3,
             "reason_category": "workload",
-            "floor_x":         0.45,
-            "floor_y":         0.62,
+            "solution_category": "clearer_priorities",
             # Fields that must NEVER appear in payload
             "id":              42,
             "description":     "Private quick-log note",
@@ -114,6 +114,8 @@ class TestLayer1_PayloadConstruction:
             "email":           "j.smith@example.com",
             "ip_address":      "192.168.1.42",
             "user_id":         "uid-9999",
+            "floor_x":         0.45,
+            "floor_y":         0.62,
         }
 
         result = _build_payload([full_local_row])
@@ -158,8 +160,8 @@ class TestLayer1_PayloadConstruction:
     def test_payload_values_not_identity_shaped(self):
         """
         None of the safe fields are free text — department and reason_category
-        are constrained to admin-defined lists, stress_level is 1-5, timestamp
-        is auto-generated, and floor_x/floor_y are bounded floats. There is no
+        are constrained to admin-defined lists, stress_level is 1-5, and timestamp
+        is auto-generated. There is no
         field left in the payload where an email, name, or other identity-shaped
         string could hide, even if a user typed one somewhere on the client —
         because the only free-text fields (description, elaboration) never
@@ -173,8 +175,6 @@ class TestLayer1_PayloadConstruction:
             "stress_level":    4,
             "elaboration":     "j.smith@example.com was rude in the meeting",
             "reason_category": "time_pressure",
-            "floor_x":         None,
-            "floor_y":         None,
         }
         payload = _build_payload([row])
         assert "elaboration" not in payload[0]
@@ -201,7 +201,7 @@ class TestLayer1_PayloadConstruction:
             "department": "ops", "timestamp": "2024-01-01T00:00:00",
             "stress_level": 1,
             "reason_category": None,
-            "floor_x": None, "floor_y": None,
+            "solution_category": None,
             # local-only fields that should be stripped:
             "id": 1, "description": "x", "elaboration": "x", "submitted": 0,
         }
@@ -213,7 +213,7 @@ class TestLayer1_PayloadConstruction:
 
     def test_empty_optional_fields_are_null_not_omitted(self):
         """
-        Optional fields (reason_category, floor_x, floor_y) must be present
+        Optional fields (reason_category, solution_category) must be present
         in the payload as null, not omitted entirely. Omitting them would
         cause server-side schema mismatches.
         """
@@ -226,11 +226,9 @@ class TestLayer1_PayloadConstruction:
         }
         payload = _build_payload([row])
         assert "reason_category" in payload[0]
-        assert "floor_x"         in payload[0]
-        assert "floor_y"         in payload[0]
+        assert "solution_category" in payload[0]
         assert payload[0]["reason_category"] is None
-        assert payload[0]["floor_x"]         is None
-        assert payload[0]["floor_y"]         is None
+        assert payload[0]["solution_category"] is None
 
 
 # ---------------------------------------------------------------------------
@@ -306,12 +304,12 @@ class TestLayer2_ServerFiltering:
         """Every key in the extracted entry must be a safe, non-identity field."""
         safe = {
             "department", "timestamp", "stress_level",
-            "reason_category", "floor_x", "floor_y",
+            "reason_category", "solution_category",
         }
         result = self._extract({
             "department": "hr", "timestamp": "2024-06-01T10:00:00",
             "stress_level": 2, "reason_category": "noise",
-            "floor_x": 0.3, "floor_y": 0.7,
+            "solution_category": "focus_time",
         })
         assert result is not None
         assert set(result.keys()) == safe
@@ -354,29 +352,19 @@ class TestLayer2_ServerFiltering:
             result = self._extract({**base, "stress_level": invalid_level})
             assert result is None, f"Level {invalid_level!r} should be rejected"
 
-    def test_floor_coords_must_be_zero_to_one(self):
+    def test_location_dropped_even_if_client_sends_it(self):
         """
-        Floor coordinates outside [0.0, 1.0] are silently nulled out.
-        The entry is still saved without coordinates.
+        Floor plan location tagging was removed. An older client may still
+        send floor_x / floor_y; the server must drop them like any other
+        unknown field.
         """
-        base = {"department": "it", "timestamp": "2024-01-01T00:00:00",
-                "stress_level": 2}
-
-        # Valid coords
-        result = self._extract({**base, "floor_x": 0.5, "floor_y": 0.5})
-        assert result["floor_x"] == pytest.approx(0.5)
-        assert result["floor_y"] == pytest.approx(0.5)
-
-        # Boundary values
-        result = self._extract({**base, "floor_x": 0.0, "floor_y": 1.0})
-        assert result["floor_x"] == pytest.approx(0.0)
-        assert result["floor_y"] == pytest.approx(1.0)
-
-        # Out-of-range — entry saved, coords nulled
-        result = self._extract({**base, "floor_x": 1.5, "floor_y": -0.1})
+        result = self._extract({
+            "department": "it", "timestamp": "2024-01-01T00:00:00",
+            "stress_level": 2, "floor_x": 0.5, "floor_y": 0.5,
+        })
         assert result is not None
-        assert result["floor_x"] is None
-        assert result["floor_y"] is None
+        assert "floor_x" not in result
+        assert "floor_y" not in result
 
 
 # ---------------------------------------------------------------------------
@@ -430,7 +418,7 @@ class TestLayer3_DatabaseSchema:
         # Columns that are EXPECTED (privacy-safe)
         expected = {
             "id", "department", "timestamp", "stress_level",
-            "reason_category", "elaboration", "floor_x", "floor_y",
+            "reason_category", "solution_category", "elaboration",
             "received_at",  # server-set receipt timestamp, not user identity
         }
 
@@ -508,7 +496,7 @@ class TestLayer3_DatabaseSchema:
         # to_dict() never surfaces it, so it can never reach an export.
         allowed_export_keys = {
             "id", "department", "timestamp", "stress_level",
-            "reason_category", "floor_x", "floor_y",
+            "reason_category", "solution_category",
         }
         forbidden_terms = [
             "user", "email", "name", "hash", "token", "machine",
@@ -626,8 +614,9 @@ class TestCrossLayerAudit:
         Confirm by inspection that 'department' is the only field in
         SUBMISSION_FIELDS that could identify a group of people.
 
-        All other fields are either categorical (stress_level, reason_category),
-        temporal (timestamp), or spatial (floor_x, floor_y) — none are personal
+        All other fields are either ordinal (stress_level), categorical
+        (reason_category, solution_category), or temporal (timestamp) — none
+        are personal
         identifiers, and none are free text (elaboration and description both
         stay on the device -- see SUBMISSION_FIELDS' docstring).
 
@@ -639,14 +628,13 @@ class TestCrossLayerAudit:
         GROUP_IDENTIFIERS = {"department"}  # intentionally coarse
         TEMPORAL_FIELDS   = {"timestamp"}
         ORDINAL_FIELDS    = {"stress_level"}
-        CATEGORICAL_FIELDS = {"reason_category"}
-        SPATIAL_FIELDS    = {"floor_x", "floor_y"}
+        CATEGORICAL_FIELDS = {"reason_category", "solution_category"}
         # No FREE_TEXT_FIELDS category: elaboration and description both stay
         # on the device and are never part of SUBMISSION_FIELDS at all.
 
         all_classified = (
             GROUP_IDENTIFIERS | TEMPORAL_FIELDS | ORDINAL_FIELDS |
-            CATEGORICAL_FIELDS | SPATIAL_FIELDS
+            CATEGORICAL_FIELDS
         )
 
         unclassified = set(SUBMISSION_FIELDS) - all_classified

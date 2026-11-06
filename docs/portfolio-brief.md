@@ -8,7 +8,7 @@ leaving the employee's device.
 ## Tags
 
 `Python` `Flask` `PyQt6` `SQLAlchemy` `SQLite` `bcrypt` `Docker` `pytest`
-`Chart.js` `Leaflet.js` `Desktop App` `REST API` `Privacy Engineering`
+`Chart.js` `Desktop App` `REST API` `Privacy Engineering`
 
 ## The problem
 
@@ -27,8 +27,8 @@ Two independent processes, communicating only over a local REST API:
   drafted and stored in a local SQLite database first; nothing is
   transmitted until the user explicitly reviews and submits.
 - **Server** (`Flask` + `SQLAlchemy`) — receives submissions and serves an
-  admin dashboard: overview charts, a filterable entries table, CSV/JSON
-  export, and an optional floor-plan heatmap (off by default — see below).
+  admin dashboard: overview charts, a filterable entries table, and CSV/JSON
+  export.
 
 Both are designed to run on one machine for demos, or split across a
 LAN/Docker deployment for real use.
@@ -38,8 +38,9 @@ LAN/Docker deployment for real use.
 The core design constraint: **the server should be structurally incapable of
 storing who submitted an entry.**
 
-- A single whitelist of 6 fields (`department`, `timestamp`, `stress_level`,
-  `reason_category`, `floor_x`, `floor_y`) is the *only* data that can cross
+- A single whitelist of 5 fields (`department`, `timestamp`, `stress_level`,
+  `reason_category`, `solution_category`) is the *only* data that can
+  cross
   the client → server boundary. It's enforced twice, independently: once
   when the client builds the outbound payload, once again when the server
   parses an inbound request — so a bug in one layer doesn't silently become
@@ -49,9 +50,9 @@ storing who submitted an entry.**
   device under every configuration — there's no setting that changes this,
   because free text is exactly what can re-identify someone or get read out
   of context by whoever has dashboard access.
-- Location tagging (`floor_x`/`floor_y`) ships **off by default** — an admin
-  has to deliberately opt in, since combining a precise timestamp with a
-  floor location is its own re-identification vector.
+- **No location tracking.** An earlier floor-plan heatmap was removed
+  entirely: combining a precise timestamp with where someone sits is its
+  own re-identification vector, and the insight wasn't worth that risk.
 - The server's database schema has no user table, no session table, no
   device identifier column — there is nothing to re-identify, even in a
   breach.
@@ -60,7 +61,7 @@ storing who submitted an entry.**
   not from the server.
 - All of this is continuously checked by an automated 3-layer privacy audit
   (payload construction → server-side filtering → database schema) as part
-  of an 88-test automated suite, runnable with a single command.
+  of an 89-test automated suite, runnable with a single command.
 
 ## Key features
 
@@ -70,20 +71,23 @@ storing who submitted an entry.**
   is sent
 - An explicit review-and-submit step that shows exactly what will leave the
   device
-- Admin dashboard: trends over time, breakdown by department/reason,
-  CSV/JSON export
-- Floor-plan heatmap, off by default — an admin can opt in if their
-  organisation decides the tradeoff is worth it
-- Configurable departments and reason categories, no code changes needed
+- A constructive half to every entry: alongside the reason, employees can
+  pick what would help (clearer priorities, realistic deadlines, focus
+  time, …) — turning a complaint into a suggestion, still as a fixed
+  category rather than free text
+- Admin dashboard: trends over time, breakdown by department/reason, a
+  "What Would Help" chart of suggested solutions, CSV/JSON export
+- Configurable departments, reason categories and solutions, no code
+  changes needed
 
 ## Tech stack detail
 
 | Layer | Technologies |
 |---|---|
 | Server | Python, Flask, Jinja2, SQLAlchemy 2 (ORM), SQLite, bcrypt, PyYAML |
-| Dashboard frontend | Vanilla JS (fetch API), Chart.js, Leaflet.js + Leaflet.heat, hand-written CSS |
+| Dashboard frontend | Vanilla JS (fetch API), Chart.js, hand-written CSS |
 | Desktop client | PyQt6, pystray, Pillow, requests, bcrypt, SQLite (stdlib) |
-| Testing | pytest — 88 tests across unit, integration, and privacy-audit suites |
+| Testing | pytest — 89 tests across unit, integration, and privacy-audit suites |
 | Deployment | Docker, Docker Compose |
 
 ## Demo-ready

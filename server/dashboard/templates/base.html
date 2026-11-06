@@ -25,11 +25,6 @@
       <li><a href="{{ url_for('dashboard.entries_page') }}" class="{{ 'active' if request.endpoint == 'dashboard.entries_page' }}">
         <span class="nav-icon">☰</span> All Entries
       </a></li>
-      {% if floorplan_enabled %}
-      <li><a href="{{ url_for('dashboard.heatmap') }}" class="{{ 'active' if request.endpoint == 'dashboard.heatmap' }}">
-        <span class="nav-icon">⊹</span> Floor Plan
-      </a></li>
-      {% endif %}
     </ul>
     <div class="sidebar-footer">
       <a href="{{ url_for('auth.logout') }}" class="logout-link">Sign out</a>

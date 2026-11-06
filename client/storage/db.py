@@ -47,9 +47,8 @@ def init_db():
                 timestamp        TEXT NOT NULL,       -- ISO 8601, auto-set, not user-editable
                 department       TEXT NOT NULL,       -- from setup, not editable per entry
                 reason_category  TEXT,
+                solution_category TEXT,               -- suggested fix, optional
                 elaboration      TEXT,
-                floor_x          REAL,                -- 0.0–1.0 relative, nullable
-                floor_y          REAL,                -- 0.0–1.0 relative, nullable
                 submitted        INTEGER DEFAULT 0,   -- 0=pending, 1=sent
                 submitted_at     TEXT                 -- ISO 8601 when sent
             );
@@ -61,3 +60,8 @@ def init_db():
                 entry_count  INTEGER NOT NULL
             );
         """)
+        # Columns added after the first release; CREATE TABLE IF NOT EXISTS
+        # leaves an existing table alone, so add them to older databases here.
+        existing = {r["name"] for r in conn.execute("PRAGMA table_info(entries)")}
+        if "solution_category" not in existing:
+            conn.execute("ALTER TABLE entries ADD COLUMN solution_category TEXT")

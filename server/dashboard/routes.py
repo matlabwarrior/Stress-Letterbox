@@ -9,12 +9,12 @@ import csv
 import json
 import io
 from datetime import datetime, timedelta
-from flask import Blueprint, render_template, request, jsonify, make_response, abort
+from flask import Blueprint, render_template, request, jsonify, make_response
 from sqlalchemy import func
 from server.models import db as db_module
 from server.models.db import Entry, utcnow_naive
 from server.config import (
-    get_departments, get_reason_categories, load_config, is_floorplan_enabled
+    get_departments, get_reason_categories, get_solution_categories
 )
 from server.dashboard.auth import require_admin, require_admin_api
 
@@ -33,6 +33,8 @@ def _build_filters(session, args: dict):
             pass
     if cat := args.get("reason_category"):
         conditions.append(Entry.reason_category == cat)
+    if sol := args.get("solution_category"):
+        conditions.append(Entry.solution_category == sol)
     if date_from := args.get("date_from"):
         try:
             conditions.append(Entry.timestamp >= datetime.fromisoformat(date_from))
@@ -52,29 +54,39 @@ def _build_filters(session, args: dict):
 def overview():
     db = db_module.SessionLocal()
     try:
-        cfg = load_config()
         departments = get_departments()
+        # The filter form above the charts narrows every figure on the page
+        conditions = _build_filters(db, request.args)
 
         # Total counts
-        total = db.query(func.count(Entry.id)).scalar()
+        total = db.query(func.count(Entry.id)).filter(*conditions).scalar()
 
         # By department
         by_dept = dict(
             db.query(Entry.department, func.count(Entry.id))
+            .filter(*conditions)
             .group_by(Entry.department).all()
         )
 
         # By stress level
         by_level = dict(
             db.query(Entry.stress_level, func.count(Entry.id))
+            .filter(*conditions)
             .group_by(Entry.stress_level).all()
         )
 
         # By reason category
         by_reason = dict(
             db.query(Entry.reason_category, func.count(Entry.id))
-            .filter(Entry.reason_category.isnot(None))
+            .filter(*conditions, Entry.reason_category.isnot(None))
             .group_by(Entry.reason_category).all()
+        )
+
+        # By suggested solution
+        by_solution = dict(
+            db.query(Entry.solution_category, func.count(Entry.id))
+            .filter(*conditions, Entry.solution_category.isnot(None))
+            .group_by(Entry.solution_category).all()
         )
 
         # Trend: entries per day for last 30 days
@@ -84,7 +96,7 @@ def overview():
                 func.date(Entry.timestamp).label("day"),
                 func.count(Entry.id).label("count")
             )
-            .filter(Entry.timestamp >= thirty_days_ago)
+            .filter(*conditions, Entry.timestamp >= thirty_days_ago)
             .group_by(func.date(Entry.timestamp))
             .order_by(func.date(Entry.timestamp))
             .all()
@@ -92,9 +104,11 @@ def overview():
         trend = [{"day": r.day, "count": r.count} for r in trend_rows]
 
         # Average stress level overall and per dept
-        avg_overall = db.query(func.avg(Entry.stress_level)).scalar()
+        avg_overall = (db.query(func.avg(Entry.stress_level))
+                       .filter(*conditions).scalar())
         avg_by_dept = dict(
             db.query(Entry.department, func.avg(Entry.stress_level))
+            .filter(*conditions)
             .group_by(Entry.department).all()
         )
 
@@ -105,44 +119,13 @@ def overview():
             by_dept=by_dept,
             by_level=by_level,
             by_reason=by_reason,
+            by_solution=by_solution,
             trend=json.dumps(trend),
             avg_overall=round(avg_overall or 0, 2),
             avg_by_dept={k: round(v, 2) for k, v in avg_by_dept.items()},
             reason_categories=get_reason_categories(),
+            solution_categories=get_solution_categories(),
         )
-    finally:
-        db.close()
-
-
-@bp.route("/admin/heatmap")
-@require_admin
-def heatmap():
-    if not is_floorplan_enabled():
-        abort(404)
-    return render_template("heatmap.html",
-                           departments=get_departments(),
-                           reason_categories=get_reason_categories())
-
-
-@bp.route("/api/admin/heatmap-data")
-@require_admin_api
-def heatmap_data():
-    """Return floor plan coordinate data for the heatmap visualisation."""
-    if not is_floorplan_enabled():
-        return jsonify({"error": "Floor plan feature is disabled"}), 404
-    db = db_module.SessionLocal()
-    try:
-        conditions = _build_filters(db, request.args)
-        conditions.append(Entry.floor_x.isnot(None))
-        conditions.append(Entry.floor_y.isnot(None))
-
-        rows = db.query(Entry.floor_x, Entry.floor_y, Entry.stress_level)\
-                 .filter(*conditions)\
-                 .all()
-
-        points = [{"x": r.floor_x, "y": r.floor_y, "intensity": r.stress_level / 5}
-                  for r in rows]
-        return jsonify({"points": points, "count": len(points)}), 200
     finally:
         db.close()
 
@@ -193,7 +176,7 @@ def export():
         buf = io.StringIO()
         writer = csv.DictWriter(buf, fieldnames=[
             "id", "department", "timestamp", "stress_level",
-            "reason_category", "floor_x", "floor_y"
+            "reason_category", "solution_category"
         ])
         writer.writeheader()
         for e in entries:
@@ -223,4 +206,5 @@ def entries_page():
         "entries.html",
         departments=get_departments(),
         reason_categories=get_reason_categories(),
+        solution_categories=get_solution_categories(),
     )

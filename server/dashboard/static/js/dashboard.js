@@ -148,3 +148,36 @@ Chart.defaults.color = CHART_DEFAULTS.color;
     }
   });
 })();
+
+// ── Suggested solutions bar chart ──────────────────────────
+(function buildSolutionChart() {
+  const ctx = document.getElementById('solution-chart');
+  if (!ctx) return;
+
+  const sols = SOLUTION_CATS.map(s => ({
+    id: s.id, label: s.label, count: BY_SOLUTION[s.id] || 0
+  })).sort((a, b) => b.count - a.count);
+
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: sols.map(s => s.label),
+      datasets: [{
+        label: 'Entries',
+        data: sols.map(s => s.count),
+        backgroundColor: 'rgba(168, 197, 160, 0.45)',
+        borderColor: 'rgba(90, 128, 80, 0.8)',
+        borderWidth: 1.5,
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false } },
+        y: { grid: { color: PALETTE.grid }, beginAtZero: true, ticks: { precision: 0 } }
+      }
+    }
+  });
+})();

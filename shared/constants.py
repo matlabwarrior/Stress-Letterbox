@@ -34,8 +34,7 @@ SUBMISSION_FIELDS = (
     "timestamp",        # str   -- ISO 8601, auto-generated, not user-editable
     "stress_level",     # int   -- 1-5 scale
     "reason_category",  # str   -- from admin-defined list, nullable
-    "floor_x",          # float -- 0.0-1.0 relative to floorplan width, nullable
-    "floor_y",          # float -- 0.0-1.0 relative to floorplan height, nullable
+    "solution_category",  # str -- suggested fix, from admin-defined list, nullable
 )
 
 # ── Stress level definitions ───────────────────────────────────────────────
@@ -50,7 +49,6 @@ STRESS_LEVELS = {
 # ── API endpoints ──────────────────────────────────────────────────────────
 API_SUBMIT      = "/api/submit"
 API_DEPARTMENTS = "/api/departments"
-API_FLOORPLAN   = "/api/floorplan"
 API_CONFIG      = "/api/config"
 
 # ── Local storage ─────────────────────────────────────────────────────────

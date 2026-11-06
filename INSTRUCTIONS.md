@@ -168,16 +168,16 @@ Run through this sequence to confirm everything works end-to-end:
 2. **Open the letterbox:**
    - Click "📬 My Letterbox"
    - The entry should appear as a card
-   - Try clicking "Edit" — add a reason category, and optionally some personal
-     notes in "More detail" (this field is labelled as staying on-device —
-     it's for you, not for submission)
+   - Try clicking "Edit" — add a reason category, pick what would help under
+     "What would help?", and optionally some personal notes (this field is
+     labelled as staying on-device — it's for you, not for submission)
    - Click "Save changes"
 
 3. **Submit to the server:**
    - In the letterbox, click "Review & Submit →"
    - A dialog shows exactly what will be sent (department, timestamp, stress
-     level, reason, and location if tagged — no names, no identifiers, and
-     none of your written notes)
+     level, reason, and suggested solution — no names, no identifiers, no
+     location, and none of your written notes)
    - Click "Submit selected"
    - You should see a confirmation message
 
@@ -186,8 +186,11 @@ Run through this sequence to confirm everything works end-to-end:
    - Log in with `admin` and the password you set in Step 3
    - The Overview page should show 1 entry
    - Click "All Entries" in the sidebar — the submitted entry should appear
-     with department, stress level, and reason category. Notice there's no
-     "notes" column at all — that's deliberate, not a missing feature.
+     with department, stress level, reason and suggested solution. Notice
+     there's no "notes" or location column at all — that's deliberate, not a
+     missing feature.
+   - Back on the Overview, the "What Would Help" chart shows which solutions
+     employees suggest most often.
 
 ---
 
@@ -258,9 +261,9 @@ Suggested demo sequence (approx. 5 minutes):
 
 1. **Show the widget** — open it from the tray, walk through the stress level selector and the calm, non-clinical design language
 2. **Log two or three entries** — use different stress levels and departments to generate data worth showing
-3. **Open the letterbox** — show edit and reason category. Point out that the "More detail" notes field is explicitly labelled as staying on-device — free text never leaves the device, full stop, not even at submission time. Emphasise that nothing else leaves the device either until the user chooses to send it
+3. **Open the letterbox** — show edit, the reason category, and "What would help?" — the constructive half of the entry: not just what's wrong, but what would fix it. Point out that the "More detail" notes field is explicitly labelled as staying on-device — free text never leaves the device, full stop, not even at submission time. Emphasise that nothing else leaves the device either until the user chooses to send it
 4. **Show the submit review dialog** — point out that only the anonymised fields are listed; no name, no machine ID, no PIN
-5. **Switch to the admin dashboard** — show the overview charts, the All Entries table, the department filter
+5. **Switch to the admin dashboard** — show the overview charts (including "What Would Help"), the All Entries table, the filters
 6. **Run the audit** (if audience is technical) — `pytest tests/test_anonymisation_audit.py -v` in the terminal
 
 ---

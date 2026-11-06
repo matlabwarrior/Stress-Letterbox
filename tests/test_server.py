@@ -101,8 +101,6 @@ class TestSubmitEndpoint:
             "timestamp": "2024-06-15T10:30:00",
             "stress_level": 3,
             "reason_category": "workload",
-            "floor_x": 0.45,
-            "floor_y": 0.62,
         }
         resp = client.post(
             "/api/submit",
@@ -155,14 +153,15 @@ class TestSubmitEndpoint:
         assert resp.status_code == 200
         assert resp.get_json()["errors"] == 1
 
-    def test_floor_coords_out_of_range_ignored(self, client):
-        """Out-of-range coordinates are silently dropped; entry is still saved."""
+    def test_location_from_older_client_ignored(self, client):
+        """An older client may still send floor coordinates; they're dropped
+        and the entry is still saved."""
         payload = {
             "department": "sales",
             "timestamp": "2024-06-15T10:00:00",
             "stress_level": 2,
-            "floor_x": 1.5,   # > 1.0 — invalid
-            "floor_y": -0.1,  # < 0.0 — invalid
+            "floor_x": 0.4,
+            "floor_y": 0.6,
         }
         resp = client.post(
             "/api/submit",
@@ -228,6 +227,33 @@ class TestSubmitEndpoint:
         entries = resp.get_json()["entries"]
         assert len(entries) == 1
         assert entries[0]["reason_category"] is None
+
+    def test_solution_category_stored(self, admin_client):
+        admin_client.post(
+            "/api/submit",
+            data=json.dumps({"department": "hr", "timestamp": "2031-02-01T09:00:00",
+                             "stress_level": 4, "reason_category": "noise",
+                             "solution_category": "focus_time"}),
+            content_type="application/json",
+        )
+        resp = admin_client.get("/api/admin/entries?date_from=2031-02-01&date_to=2031-02-02")
+        entries = resp.get_json()["entries"]
+        assert len(entries) == 1
+        assert entries[0]["solution_category"] == "focus_time"
+
+    def test_unknown_solution_dropped_but_entry_kept(self, admin_client):
+        """solution_category is optional, so an unknown one is cleared, not fatal."""
+        admin_client.post(
+            "/api/submit",
+            data=json.dumps({"department": "hr", "timestamp": "2031-03-01T09:00:00",
+                             "stress_level": 3,
+                             "solution_category": "fire everyone"}),
+            content_type="application/json",
+        )
+        resp = admin_client.get("/api/admin/entries?date_from=2031-03-01&date_to=2031-03-02")
+        entries = resp.get_json()["entries"]
+        assert len(entries) == 1
+        assert entries[0]["solution_category"] is None
 
     def test_malformed_entries_rejected_not_500(self, client):
         """Non-object entries and non-string departments are errors, not crashes."""
@@ -307,7 +333,7 @@ class TestAnonymisationBoundary:
             # to_dict() never exposes it, see server/models/db.py)
             expected = {
                 "id", "department", "timestamp", "stress_level",
-                "reason_category", "floor_x", "floor_y",
+                "reason_category", "solution_category",
             }
             assert set(entry_dict.keys()) == expected
         finally:
@@ -329,7 +355,7 @@ class TestAnonymisationBoundary:
             "stress_level": 3,
             "reason_category": "noise",
             "elaboration":  "Open plan",   # local plaintext — must NOT appear
-            "floor_x":      0.5,
+            "floor_x":      0.5,           # from an older local db — must NOT appear
             "floor_y":      0.3,
             "submitted":    0,            # local flag — must NOT appear
             "submitted_at": None,
@@ -407,8 +433,16 @@ class TestPublicEndpoints:
         # Must contain expected client-facing fields
         assert "departments"        in data
         assert "reason_categories"  in data
+        assert "solution_categories" in data
         assert "reminder_frequency" in data
         assert "entry_char_limit"   in data
+
+    def test_solution_categories_present_in_config(self, client):
+        sols = client.get("/api/config").get_json().get("solution_categories", [])
+        assert len(sols) > 0
+        for sol in sols:
+            assert "id"    in sol
+            assert "label" in sol
 
     def test_reason_categories_present_in_config(self, client):
         resp = client.get("/api/config")
@@ -515,24 +549,14 @@ class TestAdminAuth:
         for _ in range(10):
             assert client.get("/admin/login").status_code == 200
 
-    def test_heatmap_data_endpoint_requires_auth(self, client):
-        resp = client.get("/api/admin/heatmap-data")
-        assert resp.status_code == 401
-
     def test_export_endpoint_requires_auth(self, client):
         resp = client.get("/api/admin/export")
         assert resp.status_code == 401
 
-    def test_floorplan_upload_requires_auth(self, client):
-        resp = client.post("/api/floorplan/upload")
-        assert resp.status_code == 401
-
-    def test_authenticated_client_can_reach_heatmap_data(self, admin_client):
-        resp = admin_client.get("/api/admin/heatmap-data")
+    def test_authenticated_client_can_reach_entries(self, admin_client):
+        resp = admin_client.get("/api/admin/entries")
         assert resp.status_code == 200
-        data = resp.get_json()
-        assert "points" in data
-        assert "count"  in data
+        assert "entries" in resp.get_json()
 
 
 # ---------------------------------------------------------------------------
@@ -547,7 +571,7 @@ class TestExport:
             {"department": "finance", "timestamp": "2024-08-01T09:00:00",
              "stress_level": 2, "reason_category": "workload"},
             {"department": "it", "timestamp": "2024-08-02T14:00:00",
-             "stress_level": 4, "floor_x": 0.3, "floor_y": 0.7},
+             "stress_level": 4, "solution_category": "focus_time"},
         ]
         client.post(
             "/api/submit",
@@ -595,104 +619,121 @@ class TestExport:
 
 
 # ---------------------------------------------------------------------------
-# Heatmap data
+# Floor plan location tagging has been removed
 # ---------------------------------------------------------------------------
 
-class TestHeatmapData:
+class TestNoLocation:
+    """
+    The floor plan feature is gone: its routes no longer exist, and
+    coordinates sent by an older client are neither stored nor shown.
+    """
 
     def _seed_with_coords(self, client):
-        batch = [
-            {"department": "it", "timestamp": "2024-09-01T10:00:00",
-             "stress_level": 3, "floor_x": 0.2, "floor_y": 0.8},
-            {"department": "it", "timestamp": "2024-09-01T11:00:00",
-             "stress_level": 5, "floor_x": 0.6, "floor_y": 0.4},
-            {"department": "finance", "timestamp": "2024-09-01T12:00:00",
-             "stress_level": 1},  # no location — should NOT appear in heatmap
-        ]
         client.post(
             "/api/submit",
-            data=json.dumps(batch),
+            data=json.dumps([
+                {"department": "it", "timestamp": "2032-01-01T10:00:00",
+                 "stress_level": 3, "floor_x": 0.2, "floor_y": 0.8},
+            ]),
             content_type="application/json",
         )
 
-    def test_heatmap_returns_only_located_entries(self, admin_client):
-        self._seed_with_coords(admin_client)
-        resp = admin_client.get("/api/admin/heatmap-data")
-        assert resp.status_code == 200
-        data = resp.get_json()
-        for point in data["points"]:
-            # Every returned point must have valid coordinates
-            assert 0.0 <= point["x"] <= 1.0
-            assert 0.0 <= point["y"] <= 1.0
-            assert 0.0 <= point["intensity"] <= 1.0
+    def test_heatmap_page_gone(self, admin_client):
+        assert admin_client.get("/admin/heatmap").status_code == 404
 
-    def test_heatmap_filters_by_department(self, admin_client):
-        self._seed_with_coords(admin_client)
-        resp = admin_client.get("/api/admin/heatmap-data?department=finance")
-        data = resp.get_json()
-        # The `app` fixture is session-scoped, so unrelated entries from other
-        # tests may already exist for "finance" — assert only that the it-department
-        # points just seeded above do not leak into a finance-filtered query.
-        it_seeded_points = {(0.2, 0.8), (0.6, 0.4)}
-        returned_points = {(p["x"], p["y"]) for p in data["points"]}
-        assert not (it_seeded_points & returned_points)
+    def test_heatmap_data_gone(self, admin_client):
+        assert admin_client.get("/api/admin/heatmap-data").status_code == 404
 
-    def test_heatmap_intensity_normalised(self, admin_client):
-        self._seed_with_coords(admin_client)
-        resp = admin_client.get("/api/admin/heatmap-data")
-        for point in resp.get_json()["points"]:
-            assert point["intensity"] <= 1.0, "Intensity must be normalised to 0–1"
-            assert point["intensity"] >  0.0, "Intensity must be > 0 for real entries"
+    def test_floorplan_api_gone(self, admin_client):
+        assert admin_client.get("/api/floorplan").status_code == 404
+        assert admin_client.post("/api/floorplan/upload").status_code == 404
 
-
-# ---------------------------------------------------------------------------
-# floorplan.enabled must gate the feature end-to-end, not just hide the flag
-# ---------------------------------------------------------------------------
-
-class TestFloorplanToggle:
-    """
-    Each route that touches floor plans checks is_floorplan_enabled()
-    independently, so there's no single place the check can be missed.
-    The default in the shipped config.yaml/example is False -- these tests
-    verify the disabled path directly by patching the flag off, since the
-    test fixture config itself has it on (so the *other* floorplan/heatmap
-    tests can exercise the feature normally).
-    """
-
-    def test_get_floorplan_404_when_disabled(self, client, monkeypatch):
-        import server.api.floorplan as floorplan_mod
-        monkeypatch.setattr(floorplan_mod, "is_floorplan_enabled", lambda: False)
-        resp = client.get("/api/floorplan")
-        assert resp.status_code == 404
-
-    def test_floorplan_upload_404_when_disabled_even_for_admin(self, admin_client, monkeypatch):
-        import server.api.floorplan as floorplan_mod
-        monkeypatch.setattr(floorplan_mod, "is_floorplan_enabled", lambda: False)
-        resp = admin_client.post("/api/floorplan/upload")
-        assert resp.status_code == 404
-
-    def test_heatmap_page_404_when_disabled(self, admin_client, monkeypatch):
-        import server.dashboard.routes as routes_mod
-        monkeypatch.setattr(routes_mod, "is_floorplan_enabled", lambda: False)
-        resp = admin_client.get("/admin/heatmap")
-        assert resp.status_code == 404
-
-    def test_heatmap_data_404_when_disabled(self, admin_client, monkeypatch):
-        import server.dashboard.routes as routes_mod
-        monkeypatch.setattr(routes_mod, "is_floorplan_enabled", lambda: False)
-        resp = admin_client.get("/api/admin/heatmap-data")
-        assert resp.status_code == 404
-
-    def test_nav_link_hidden_when_disabled(self, admin_client, monkeypatch):
-        import server.config as config_mod
-        monkeypatch.setattr(config_mod, "is_floorplan_enabled", lambda: False)
+    def test_no_floor_plan_nav_link(self, admin_client):
         resp = admin_client.get("/admin/")
         assert b"Floor Plan" not in resp.data
 
-    def test_nav_link_present_when_enabled(self, admin_client):
-        """Sanity check the flag's default (enabled, per the test fixture)."""
-        resp = admin_client.get("/admin/")
-        assert b"Floor Plan" in resp.data
+    def test_entries_api_has_no_coordinates(self, admin_client):
+        self._seed_with_coords(admin_client)
+        resp = admin_client.get("/api/admin/entries?date_from=2032-01-01&date_to=2032-01-02")
+        entries = resp.get_json()["entries"]
+        assert len(entries) == 1
+        assert "floor_x" not in entries[0]
+        assert "floor_y" not in entries[0]
+
+    def test_exports_have_no_coordinates(self, admin_client):
+        self._seed_with_coords(admin_client)
+        csv_text = admin_client.get("/api/admin/export?format=csv").data.decode("utf-8")
+        csv_header = csv_text.splitlines()[0]
+        assert "floor" not in csv_header
+        data = json.loads(admin_client.get("/api/admin/export?format=json").data)
+        assert all("floor_x" not in e for e in data)
+
+
+# ---------------------------------------------------------------------------
+# Overview filters apply to the figures on the page
+# ---------------------------------------------------------------------------
+
+class TestDatabaseUpgrade:
+
+    def test_init_db_upgrades_older_database(self, tmp_path):
+        """A server database from an older version keeps its rows, gains the
+        solution column, and has any stored floor coordinates wiped."""
+        import sqlite3
+        import server.models.db as db_module
+
+        path = tmp_path / "old_server.db"
+        conn = sqlite3.connect(path)
+        conn.execute("""CREATE TABLE entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, department VARCHAR(64) NOT NULL,
+            timestamp DATETIME NOT NULL, stress_level INTEGER NOT NULL,
+            reason_category VARCHAR(64), elaboration TEXT, floor_x FLOAT,
+            floor_y FLOAT, received_at DATETIME NOT NULL)""")
+        conn.execute("""INSERT INTO entries (department, timestamp, stress_level,
+                                             floor_x, floor_y, received_at)
+                        VALUES ('hr', '2024-01-01 09:00:00', 3, 0.4, 0.6,
+                                '2024-01-01 09:00:00')""")
+        conn.commit()
+        conn.close()
+
+        old_engine, old_session = db_module._engine, db_module.SessionLocal
+        try:
+            db_module.init_db(str(path))
+            db = db_module.SessionLocal()
+            try:
+                rows = db.query(db_module.Entry).all()
+                assert len(rows) == 1
+                assert rows[0].solution_category is None
+            finally:
+                db.close()
+            db_module._engine.dispose()
+        finally:
+            db_module._engine, db_module.SessionLocal = old_engine, old_session
+
+        conn = sqlite3.connect(path)
+        try:
+            coords = conn.execute("SELECT floor_x, floor_y FROM entries").fetchall()
+        finally:
+            conn.close()
+        assert coords == [(None, None)]
+
+
+class TestOverviewFilters:
+
+    def test_filter_narrows_totals(self, admin_client):
+        admin_client.post(
+            "/api/submit",
+            data=json.dumps([
+                {"department": "sales", "timestamp": "2033-01-01T10:00:00",
+                 "stress_level": 2, "solution_category": "clearer_priorities"},
+            ]),
+            content_type="application/json",
+        )
+        resp = admin_client.get(
+            "/admin/?solution_category=clearer_priorities"
+            "&date_from=2033-01-01&date_to=2033-01-02"
+        )
+        assert resp.status_code == 200
+        assert b'<div class="stat-value">1</div>' in resp.data
 
 
 # ---------------------------------------------------------------------------

@@ -17,7 +17,7 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      # Persistent database and floor plan uploads
+      # Persistent database
       - ./data/db:/app/server/data
       # Config mounted read-only — edit on host, restart to apply
       - ./data/config.yaml:/app/config.yaml:ro

@@ -70,6 +70,35 @@ reason_categories:
   - id: "other"
     label: "Other"
 
+# ── Suggested Solutions ──────────────────────────────────────
+# Optional: what the employee thinks would help. Shared alongside the
+# reason, so a log can say "here's what's wrong, and here's what would fix
+# it". Like reasons, these are fixed choices -- never free text.
+# Leave the section out (or empty) to hide the option in the client.
+solution_categories:
+  - id: "focus_time"
+    label: "Quiet space or focus time"
+  - id: "clearer_priorities"
+    label: "Clearer priorities"
+  - id: "realistic_deadlines"
+    label: "More realistic deadlines"
+  - id: "more_hands"
+    label: "More people or redistributed work"
+  - id: "better_tools"
+    label: "Better tools or equipment"
+  - id: "clearer_communication"
+    label: "Clearer instructions or communication"
+  - id: "support"
+    label: "Support from a colleague or manager"
+  - id: "flexibility"
+    label: "More flexibility in when or where I work"
+  - id: "breaks"
+    label: "Time for breaks and recovery"
+  - id: "training"
+    label: "Training or guidance"
+  - id: "other"
+    label: "Other"
+
 # ── Client Behaviour ─────────────────────────────────────────
 client:
   # Update this to your server's LAN IP address:
@@ -77,12 +106,6 @@ client:
   reminder_frequency: "weekly"   # "weekly" or "monthly"
   entry_char_limit: 280
   retention_days: 90             # Days to keep submitted entries locally (0 = keep forever)
-
-# ── Floor Plan ───────────────────────────────────────────────
-floorplan:
-  enabled: false                 # off by default -- location tagging can make an
-                                  # anonymous entry re-identifiable; enable deliberately
-  active_floorplan_id: null      # Managed automatically by the admin dashboard
 
 # ── Database ─────────────────────────────────────────────────
 database:

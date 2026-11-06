@@ -13,7 +13,7 @@ Server communication and submission payload builder.
 ║  It reads from: entries (local SQLite rows)                     ║
 ║  It outputs:    a list of dicts containing ONLY these fields:   ║
 ║    - department, timestamp, stress_level, reason_category,      ║
-║      floor_x, floor_y                                          ║
+║      solution_category                                         ║
 ║                                                                  ║
 ║  It NEVER reads: id, pin_hash, session_token, machine name,     ║
 ║  IP address, username, description, elaboration, or any other   ║
@@ -22,7 +22,7 @@ Server communication and submission payload builder.
 """
 
 import requests
-from shared.constants import SUBMISSION_FIELDS, API_SUBMIT, API_DEPARTMENTS, API_CONFIG, API_FLOORPLAN
+from shared.constants import SUBMISSION_FIELDS, API_SUBMIT, API_DEPARTMENTS, API_CONFIG
 
 
 def _build_payload(entries: list[dict]) -> list[dict]:
@@ -39,8 +39,7 @@ def _build_payload(entries: list[dict]) -> list[dict]:
             "timestamp":       entry["timestamp"],
             "stress_level":    entry["stress_level"],
             "reason_category": entry.get("reason_category"),
-            "floor_x":         entry.get("floor_x"),
-            "floor_y":         entry.get("floor_y"),
+            "solution_category": entry.get("solution_category"),
         }
         for entry in entries
     ]
@@ -80,21 +79,11 @@ class ServerClient:
             return False, f"Unexpected error: {e}"
 
     def fetch_config(self) -> dict | None:
-        """Fetch departments, reason categories, and client config from server."""
+        """Fetch departments, reason and solution categories, and client config from server."""
         try:
             resp = requests.get(self.base + API_CONFIG, timeout=self.timeout)
             if resp.status_code == 200:
                 return resp.json()
-        except Exception:
-            pass
-        return None
-
-    def fetch_floorplan(self) -> bytes | None:
-        """Fetch the active floor plan image bytes."""
-        try:
-            resp = requests.get(self.base + API_FLOORPLAN, timeout=self.timeout)
-            if resp.status_code == 200:
-                return resp.content
         except Exception:
             pass
         return None

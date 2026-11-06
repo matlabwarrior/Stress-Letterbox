@@ -12,8 +12,8 @@ Schema design principles:
 import os
 from datetime import datetime, timezone
 from sqlalchemy import (
-    create_engine, Column, Integer, String, Float,
-    DateTime, Boolean, Text, event
+    create_engine, Column, Integer, String,
+    DateTime, Text, event, inspect, text
 )
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
@@ -56,13 +56,12 @@ class Entry(Base):
     timestamp       = Column(DateTime, nullable=False, index=True)
     stress_level    = Column(Integer, nullable=False)       # 1–5
     reason_category = Column(String(64), nullable=True)
+    solution_category = Column(String(64), nullable=True)  # suggested fix, optional
     # Column kept (not migrated away) so this stays a reversible code-level
     # decision, but it is never populated by new submissions (see
     # server/api/submissions.py) and never exposed by to_dict() below --
     # free text does not belong on the admin side of this app.
     elaboration     = Column(Text, nullable=True)
-    floor_x         = Column(Float, nullable=True)          # 0.0–1.0
-    floor_y         = Column(Float, nullable=True)          # 0.0–1.0
     received_at     = Column(DateTime, default=utcnow_naive, nullable=False)
 
     def to_dict(self):
@@ -72,22 +71,8 @@ class Entry(Base):
             "timestamp":        self.timestamp.isoformat() if self.timestamp else None,
             "stress_level":     self.stress_level,
             "reason_category":  self.reason_category,
-            "floor_x":          self.floor_x,
-            "floor_y":          self.floor_y,
+            "solution_category": self.solution_category,
         }
-
-
-# ---------------------------------------------------------------------------
-# FloorPlan — uploaded by admin
-# ---------------------------------------------------------------------------
-class FloorPlan(Base):
-    __tablename__ = "floorplans"
-
-    id          = Column(Integer, primary_key=True, autoincrement=True)
-    filename    = Column(String(256), nullable=False)
-    label       = Column(String(128), nullable=True)   # e.g. "Floor 2 — East Wing"
-    is_active   = Column(Boolean, default=False)
-    uploaded_at = Column(DateTime, default=utcnow_naive)
 
 
 # ---------------------------------------------------------------------------
@@ -98,10 +83,38 @@ _engine = None
 SessionLocal = None
 
 
+# Columns added after the first release. create_all() only creates missing
+# tables, so a database from an older version gets these via ALTER TABLE.
+_LATER_COLUMNS = {
+    "entries": {"solution_category": "VARCHAR(64)"},
+}
+
+
+def _add_missing_columns(engine):
+    insp = inspect(engine)
+    with engine.begin() as conn:
+        for table, columns in _LATER_COLUMNS.items():
+            existing = {c["name"] for c in insp.get_columns(table)}
+            for name, sql_type in columns.items():
+                if name not in existing:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {sql_type}"))
+
+        # Floor plan location tagging was removed. Older databases still have
+        # the floor_x / floor_y columns; clear any coordinates left in them so
+        # no location data outlives the feature.
+        entry_columns = {c["name"] for c in insp.get_columns("entries")}
+        if {"floor_x", "floor_y"} <= entry_columns:
+            conn.execute(text(
+                "UPDATE entries SET floor_x = NULL, floor_y = NULL "
+                "WHERE floor_x IS NOT NULL OR floor_y IS NOT NULL"
+            ))
+
+
 def init_db(db_path: str):
     global _engine, SessionLocal
     _engine = get_engine(db_path)
     Base.metadata.create_all(_engine)
+    _add_missing_columns(_engine)
     SessionLocal = sessionmaker(bind=_engine, autoflush=False, autocommit=False)
 
 
